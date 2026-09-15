@@ -60,3 +60,5 @@ ctest --test-dir build --output-on-failure
 3. Add richer predicate tests, including invalid column/type cases.
 4. Define a stable on-disk row format version and migration boundary.
 5. Add basic dataset ingestion for rows with embedding vectors.
+
+push test
