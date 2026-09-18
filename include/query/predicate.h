@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace vrdb {
@@ -21,26 +22,38 @@ struct IntegerPredicate {
     int64_t value;
 };
 
-struct VectorDistancePredicate {
+struct TextPredicate {
     std::string column;
+    ComparisonOperator op;
+    std::string value;
+};
+
+enum class DistanceMetric {
+    EUCLIDEAN,
+    COSINE
+};
+
+struct VectorPredicate {
+    std::string column;
+    DistanceMetric metric;
     std::vector<float> referenceVector;
+    ComparisonOperator op;
     float threshold;
 };
 
-struct Predicate {
-    enum class Kind {
-        INTEGER_COMPARISON,
-        VECTOR_DISTANCE
-    };
+using Predicate = std::variant<IntegerPredicate, TextPredicate, VectorPredicate>;
 
-    Kind kind;
-    IntegerPredicate integer;
-    VectorDistancePredicate vectorDistance;
-
-    static Predicate integerComparison(std::string column, ComparisonOperator op, int64_t value);
-    static Predicate vectorDistanceLessThan(std::string column, std::vector<float> referenceVector, float threshold);
-};
+Predicate integerComparison(std::string column, ComparisonOperator op, int64_t value);
+Predicate textComparison(std::string column, ComparisonOperator op, std::string value);
+Predicate vectorDistance(std::string column,
+                         DistanceMetric metric,
+                         std::vector<float> referenceVector,
+                         ComparisonOperator op,
+                         float threshold);
+Predicate vectorDistanceLessThan(std::string column, std::vector<float> referenceVector, float threshold);
 
 bool evaluateIntegerComparison(int64_t left, ComparisonOperator op, int64_t right);
+bool evaluateTextComparison(const std::string& left, ComparisonOperator op, const std::string& right);
+bool evaluateFloatComparison(float left, ComparisonOperator op, float right);
 
 } // namespace vrdb

@@ -259,8 +259,8 @@ A working checklist for the vector-relational database. 155 items across 17 phas
 
 - [ ] **100.** Make query construction ergonomic.
 - [ ] **101.** Add helpers like:
-  - [ ] `Predicate::integerGreaterThan("rating", 7)`
-  - [ ] `Predicate::vectorDistanceLessThan("embedding", ref, 0.3, DistanceMetric::COSINE)`
+  - [ ] `integerComparison("rating", ComparisonOperator::GREATER_THAN, 7)`
+  - [ ] `vectorDistance("embedding", DistanceMetric::COSINE, ref, ComparisonOperator::LESS_THAN, 0.3f)`
 - [ ] **102.** Add examples in README.
 - [ ] **103.** Add example query in `main.cpp`.
 - [ ] **104.** Add tests showing intended user-facing API.
@@ -398,10 +398,10 @@ Four items are decisions rather than code, and each one blocks work in a later p
 
 Item **7** and item **132** are the same decision made twice, eleven phases apart. Making it once, in Phase 1, is much cheaper than retrofitting it in Phase 15.
 
-### Two defects already in the tree
+### Defects addressed from the original tree
 
-- **Tests currently verify nothing in a Release build.** The suites use bare `assert`, and `CMakeLists.txt` sets no default `CMAKE_BUILD_TYPE` — configuring with `-DCMAKE_BUILD_TYPE=Release` defines `NDEBUG`, strips every assertion, and all three suites report success. Relevant to items **148**–**149**; worth fixing before any of the test items below it are written, or they will pass vacuously too.
-- **`FileStorageEngine::createTable` opens with `std::ios::trunc`.** Re-running `vrdb_demo` erases the table it wrote last run. Combined with the absence of catalog loading, persisted rows are unreachable after restart. Items **8**–**11** fix this; item **28** is the test that proves it.
+- **Catalog-backed startup is now present.** `Database` loads table names and schemas from `catalog.vrdb`, and row data lives under the database directory's `tables/` subdirectory.
+- **Queries now read persisted rows through `Database::select()`.** The executor takes a schema and row set, returning `QueryResult` with projection support instead of reading a separate in-memory `Table`.
 
 ### Relation to the Phase 1 work split
 

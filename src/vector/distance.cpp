@@ -1,14 +1,16 @@
 #include "vector/distance.h"
 
+#include "db/errors.h"
+#include "query/predicate.h"
+
 #include <cmath>
-#include <stdexcept>
 
 namespace vrdb {
 namespace {
 
 void validateSameDimension(const std::vector<float>& a, const std::vector<float>& b) {
     if (a.size() != b.size()) {
-        throw std::invalid_argument("vectors must have matching dimensions");
+        throw QueryError("vectors must have matching dimensions");
     }
 }
 
@@ -27,7 +29,7 @@ float cosineDistance(const std::vector<float>& a, const std::vector<float>& b) {
     }
 
     if (normA == 0.0f || normB == 0.0f) {
-        throw std::invalid_argument("cosine distance is undefined for zero vectors");
+        throw QueryError("cosine distance is undefined for zero vectors");
     }
 
     return 1.0f - dot / (std::sqrt(normA) * std::sqrt(normB));
@@ -42,6 +44,16 @@ float euclideanDistance(const std::vector<float>& a, const std::vector<float>& b
         sum += delta * delta;
     }
     return std::sqrt(sum);
+}
+
+float distance(const std::vector<float>& a, const std::vector<float>& b, DistanceMetric metric) {
+    switch (metric) {
+    case DistanceMetric::EUCLIDEAN:
+        return euclideanDistance(a, b);
+    case DistanceMetric::COSINE:
+        return cosineDistance(a, b);
+    }
+    throw QueryError("unknown distance metric");
 }
 
 } // namespace vrdb

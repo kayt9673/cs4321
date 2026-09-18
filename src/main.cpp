@@ -18,26 +18,31 @@ int main() {
         Column("embedding", ColumnType::VECTOR, 4),
     });
 
+    if (db.hasTable("reviews")) {
+        db.dropTable("reviews");
+    }
     db.createTable("reviews", schema);
-    db.insert("reviews", {
+    db.insert("reviews", Row({
         int64_t{1},
         int64_t{8},
         std::string{"Example review"},
         std::vector<float>{0.1f, 0.2f, 0.3f, 0.4f},
-    });
+    }));
 
     Query query;
     query.table = "reviews";
+    query.predicates.push_back(integerComparison("rating", ComparisonOperator::GREATER_THAN_OR_EQUAL, 7));
     query.predicates.push_back(
-        Predicate::integerComparison("rating", ComparisonOperator::GREATER_THAN_OR_EQUAL, 7));
-    query.predicates.push_back(
-        Predicate::vectorDistanceLessThan("embedding", {0.1f, 0.2f, 0.3f, 0.4f}, 0.01f));
+        vectorDistance("embedding",
+                       DistanceMetric::COSINE,
+                       {0.1f, 0.2f, 0.3f, 0.4f},
+                       ComparisonOperator::LESS_THAN,
+                       0.01f));
 
-    QueryExecutor executor;
-    const auto results = executor.execute(query, db.table("reviews"));
+    const auto result = db.select(query);
 
-    std::cout << "Inserted rows persisted: " << db.rows("reviews").size() << '\n';
-    std::cout << "Rows matching demo query: " << results.size() << '\n';
+    std::cout << "Inserted rows persisted: " << db.rowCount("reviews") << '\n';
+    std::cout << "Rows matching demo query: " << result.rows.size() << '\n';
 
     return 0;
 }

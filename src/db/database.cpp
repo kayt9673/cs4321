@@ -1,59 +1,64 @@
 #include "db/database.h"
 
-#include <stdexcept>
+#include "db/errors.h"
+
 #include <utility>
 
 namespace vrdb {
 
-Database::Database(std::filesystem::path storagePath)
-    : storageEngine_(std::make_unique<FileStorageEngine>(std::move(storagePath))) {}
-
-Database::Database(std::unique_ptr<StorageEngine> storageEngine)
-    : storageEngine_(std::move(storageEngine)) {
-    if (!storageEngine_) {
-        throw std::invalid_argument("storage engine cannot be null");
-    }
+Database::Database(const std::filesystem::path& storagePath)
+    : catalog_(storagePath),
+      storage_(std::make_unique<FileStorageEngine>(storagePath / "tables")) {
+    catalog_.load();
 }
 
 void Database::createTable(const std::string& name, const Schema& schema) {
-    if (tables_.find(name) != tables_.end()) {
-        throw std::invalid_argument("table already exists: " + name);
+    if (catalog_.hasTable(name)) {
+        throw DatabaseError("table already exists: " + name);
     }
-
-    storageEngine_->createTable(name, schema);
-    tables_.emplace(name, Table(name, schema));
-}
-
-void Database::insert(const std::string& tableName, Row row) {
-    Table& table = mutableTable(tableName);
-    row.validateAgainst(table.schema());
-    storageEngine_->appendRow(tableName, table.schema(), row);
-    table.addRow(std::move(row));
-}
-
-void Database::insert(const std::string& tableName, std::vector<Value> values) {
-    insert(tableName, Row(std::move(values)));
-}
-
-std::vector<Row> Database::rows(const std::string& tableName) const {
-    const Table& table = this->table(tableName);
-    return storageEngine_->readRows(tableName, table.schema());
-}
-
-const Table& Database::table(const std::string& tableName) const {
-    const auto found = tables_.find(tableName);
-    if (found == tables_.end()) {
-        throw std::out_of_range("unknown table: " + tableName);
+    storage_->createTable(name);
+    try {
+        catalog_.createTable(name, schema);
+    } catch (...) {
+        storage_->dropTable(name);
+        throw;
     }
-    return found->second;
 }
 
-Table& Database::mutableTable(const std::string& tableName) {
-    const auto found = tables_.find(tableName);
-    if (found == tables_.end()) {
-        throw std::out_of_range("unknown table: " + tableName);
+void Database::dropTable(const std::string& name) {
+    if (!catalog_.hasTable(name)) {
+        throw DatabaseError("unknown table: " + name);
     }
-    return found->second;
+    storage_->dropTable(name);
+    catalog_.dropTable(name);
+}
+
+void Database::insert(const std::string& tableName, const Row& row) {
+    const auto& schema = catalog_.getSchema(tableName);
+    row.validateAgainst(schema);
+    storage_->appendRow(tableName, schema, row);
+}
+
+QueryResult Database::select(const Query& query) {
+    const auto& schema = catalog_.getSchema(query.table);
+    return executor_.execute(query, schema, storage_->readRows(query.table, schema));
+}
+
+bool Database::hasTable(const std::string& name) const {
+    return catalog_.hasTable(name);
+}
+
+std::vector<std::string> Database::listTables() const {
+    return catalog_.listTables();
+}
+
+const Schema& Database::getSchema(const std::string& tableName) const {
+    return catalog_.getSchema(tableName);
+}
+
+std::size_t Database::rowCount(const std::string& tableName) const {
+    const auto& schema = catalog_.getSchema(tableName);
+    return storage_->readRows(tableName, schema).size();
 }
 
 } // namespace vrdb

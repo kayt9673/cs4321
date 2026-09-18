@@ -14,25 +14,32 @@ int main() {
     assert(evaluateIntegerComparison(7, ComparisonOperator::GREATER_THAN, 6));
     assert(evaluateIntegerComparison(7, ComparisonOperator::GREATER_THAN_OR_EQUAL, 7));
 
-    Table table("reviews", Schema({
+    Schema schema({
         Column("id", ColumnType::INTEGER),
         Column("rating", ColumnType::INTEGER),
+        Column("review", ColumnType::TEXT),
         Column("embedding", ColumnType::VECTOR, 2),
-    }));
+    });
 
-    table.addRow(Row({int64_t{1}, int64_t{8}, std::vector<float>{0.0f, 0.0f}}));
-    table.addRow(Row({int64_t{2}, int64_t{3}, std::vector<float>{10.0f, 10.0f}}));
+    std::vector<Row> rows({
+        Row({int64_t{1}, int64_t{8}, std::string{"keep"}, std::vector<float>{1.0f, 0.0f}}),
+        Row({int64_t{2}, int64_t{3}, std::string{"skip"}, std::vector<float>{0.0f, 1.0f}}),
+    });
 
     Query query;
     query.table = "reviews";
+    query.projection = {"id", "review"};
+    query.predicates.push_back(integerComparison("rating", ComparisonOperator::GREATER_THAN_OR_EQUAL, 7));
+    query.predicates.push_back(textComparison("review", ComparisonOperator::EQUAL, "keep"));
     query.predicates.push_back(
-        Predicate::integerComparison("rating", ComparisonOperator::GREATER_THAN_OR_EQUAL, 7));
-    query.predicates.push_back(Predicate::vectorDistanceLessThan("embedding", {0.0f, 0.0f}, 1.0f));
+        vectorDistance("embedding", DistanceMetric::COSINE, {1.0f, 0.0f}, ComparisonOperator::LESS_THAN_OR_EQUAL, 0.0f));
 
     QueryExecutor executor;
-    const auto results = executor.execute(query, table);
-    assert(results.size() == 1);
-    assert(std::get<int64_t>(results[0].value(0)) == 1);
+    const auto result = executor.execute(query, schema, rows);
+    assert(result.schema.size() == 2);
+    assert(result.rows.size() == 1);
+    assert(std::get<int64_t>(result.rows[0].value(0)) == 1);
+    assert(std::get<std::string>(result.rows[0].value(1)) == "keep");
 
     return 0;
 }

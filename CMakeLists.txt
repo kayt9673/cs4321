@@ -8,9 +8,14 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(vrdb
     src/db/database.cpp
-    src/storage/schema_row_value.cpp
-    src/storage/storage_engine.cpp
-    src/storage/table.cpp
+    src/db/catalog.cpp
+    src/db/errors.cpp
+    src/query/predicate.cpp
+    src/types/value.cpp
+    src/types/schema.cpp
+    src/types/row.cpp
+    src/storage/serialization.cpp
+    src/storage/file_storage_engine.cpp
     src/query/executor.cpp
     src/vector/distance.cpp
 )

@@ -1,7 +1,9 @@
 #pragma once
 
 #include "query/query.h"
-#include "storage/table.h"
+#include "query/query_result.h"
+#include "types/row.h"
+#include "types/schema.h"
 
 #include <vector>
 
@@ -9,10 +11,12 @@ namespace vrdb {
 
 class QueryExecutor {
 public:
-    std::vector<Row> execute(const Query& query, const Table& table) const;
+    QueryResult execute(const Query& query, const Schema& schema, const std::vector<Row>& rows) const;
 
 private:
-    bool matches(const Row& row, const Table& table, const Predicate& predicate) const;
+    bool evaluatePredicate(const Predicate& predicate, const Schema& schema, const Row& row) const;
+    Row projectRow(const Row& row, const Schema& schema, const std::vector<std::string>& projection) const;
+    Schema projectSchema(const Schema& schema, const std::vector<std::string>& projection) const;
 };
 
 } // namespace vrdb
