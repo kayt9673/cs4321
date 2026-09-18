@@ -12,9 +12,9 @@ int main() {
     std::filesystem::remove_all(root);
 
     Schema schema({
-        Column("id", ColumnType::INTEGER),
-        Column("review", ColumnType::TEXT),
-        Column("embedding", ColumnType::VECTOR, 3),
+        Column("id", Int64Type{}),
+        Column("review", TextType{}),
+        Column("embedding", VectorType{3}),
     });
 
     Database db(root);

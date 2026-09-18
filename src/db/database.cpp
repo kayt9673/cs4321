@@ -26,7 +26,7 @@ void Database::createTable(const std::string& name, const Schema& schema) {
 
 void Database::insert(const std::string& tableName, Row row) {
     Table& table = mutableTable(tableName);
-    row.validateAgainst(table.schema());
+    table.schema().validateRow(row);
     storageEngine_->appendRow(tableName, table.schema(), row);
     table.addRow(std::move(row));
 }

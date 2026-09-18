@@ -9,18 +9,6 @@
 namespace vrdb {
 namespace {
 
-std::string typeName(ColumnType type) {
-    switch (type) {
-    case ColumnType::INTEGER:
-        return "INTEGER";
-    case ColumnType::TEXT:
-        return "TEXT";
-    case ColumnType::VECTOR:
-        return "VECTOR";
-    }
-    throw std::invalid_argument("unknown column type");
-}
-
 std::string escapeText(const std::string& value) {
     std::ostringstream out;
     for (unsigned char ch : value) {
@@ -67,7 +55,7 @@ std::string serializeValue(const Value& value) {
         return "T:" + escapeText(*text);
     }
 
-    const auto& vector = std::get<std::vector<float>>(value);
+    const auto& vector = std::get<VectorValue>(value);
     std::ostringstream out;
     out << "V:";
     for (std::size_t i = 0; i < vector.size(); ++i) {
@@ -87,20 +75,20 @@ Value deserializeValue(const std::string& encoded, const Column& column) {
     const char tag = encoded[0];
     const std::string payload = encoded.substr(2);
 
-    if (column.type == ColumnType::INTEGER && tag == 'I') {
-        return static_cast<int64_t>(std::stoll(payload));
+    if (isInteger(column.type) && tag == 'I') {
+        return static_cast<std::int64_t>(std::stoll(payload));
     }
-    if (column.type == ColumnType::TEXT && tag == 'T') {
+    if (isText(column.type) && tag == 'T') {
         return unescapeText(payload);
     }
-    if (column.type == ColumnType::VECTOR && tag == 'V') {
-        std::vector<float> vector;
+    if (isVector(column.type) && tag == 'V') {
+        VectorValue vector;
         if (!payload.empty()) {
             for (const auto& part : split(payload, ',')) {
                 vector.push_back(std::stof(part));
             }
         }
-        if (vector.size() != column.vectorDimension) {
+        if (vector.size() != std::get<VectorType>(column.type).dimension()) {
             throw std::runtime_error("stored vector dimension does not match schema");
         }
         return vector;
@@ -117,7 +105,6 @@ FileStorageEngine::FileStorageEngine(std::filesystem::path rootDirectory)
 }
 
 void FileStorageEngine::createTable(const std::string& tableName, const Schema& schema) {
-    schema.validate();
     std::filesystem::create_directories(rootDirectory_);
 
     std::ofstream file(tablePath(tableName), std::ios::trunc);
@@ -127,13 +114,16 @@ void FileStorageEngine::createTable(const std::string& tableName, const Schema& 
 
     file << "# vrdb table " << tableName << '\n';
     for (const auto& column : schema.columns()) {
-        file << "# column " << escapeText(column.name) << ' ' << typeName(column.type) << ' '
-             << column.vectorDimension << '\n';
+        const auto dimension = isVector(column.type)
+            ? std::get<VectorType>(column.type).dimension()
+            : std::size_t{0};
+        file << "# column " << escapeText(column.name) << ' ' << dataTypeName(column.type) << ' '
+             << dimension << '\n';
     }
 }
 
 void FileStorageEngine::appendRow(const std::string& tableName, const Schema& schema, const Row& row) {
-    row.validateAgainst(schema);
+    schema.validateRow(row);
 
     std::ofstream file(tablePath(tableName), std::ios::app);
     if (!file) {
@@ -171,11 +161,11 @@ std::vector<Row> FileStorageEngine::readRows(const std::string& tableName, const
         std::vector<Value> values;
         values.reserve(parts.size());
         for (std::size_t i = 0; i < parts.size(); ++i) {
-            values.push_back(deserializeValue(parts[i], schema.column(i)));
+            values.push_back(deserializeValue(parts[i], schema.column(static_cast<ColumnId>(i))));
         }
 
         Row row(std::move(values));
-        row.validateAgainst(schema);
+        schema.validateRow(row);
         rows.push_back(std::move(row));
     }
 

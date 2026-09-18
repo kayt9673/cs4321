@@ -36,3 +36,11 @@ add_test(NAME predicates COMMAND test_predicates)
 add_executable(test_distance tests/test_distance.cpp)
 target_link_libraries(test_distance PRIVATE vrdb)
 add_test(NAME distance COMMAND test_distance)
+
+add_executable(test_schema tests/test_schema.cpp)
+target_link_libraries(test_schema PRIVATE vrdb)
+add_test(NAME schema COMMAND test_schema)
+
+add_executable(test_row tests/test_row.cpp)
+target_link_libraries(test_row PRIVATE vrdb)
+add_test(NAME row COMMAND test_row)

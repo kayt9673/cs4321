@@ -17,10 +17,21 @@ transactions, joins, or an external database dependency yet.
 - `StorageEngine`: persistence abstraction. `FileStorageEngine` currently uses a
   simple line-oriented file format under the configured data directory.
 - `Schema`, `Column`, `Row`, and `Value`: core type-safe relational data model.
+  `DataType` is a variant of `Int64Type`, `TextType`, and `VectorType`; only
+  `VectorType` carries a dimension, and zero-dimensional vector types are
+  rejected.
+- `ColumnId` and `RowId`: stable internal identifiers. A schema resolves a
+  user-facing column name to a `ColumnId` once, while `StoredRow` keeps a
+  database row identity separate from its logical values.
 - `Predicate`, `Query`, and `QueryExecutor`: programmatic query representation
   and a minimal sequential-scan executor.
 - `vector/distance`: Euclidean and cosine distance utilities with dimension
   validation.
+
+Schemas reject empty column sets, empty or duplicate column names, and invalid
+vector dimensions. `Schema::validateRow` requires an exact value count, matching
+logical types, and exact vector dimensions. Column names are case-sensitive, so
+`Embedding` and `embedding` identify different columns.
 
 ## Build
 

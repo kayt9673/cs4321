@@ -6,9 +6,7 @@
 namespace vrdb {
 
 Table::Table(std::string name, Schema schema)
-    : name_(std::move(name)), schema_(std::move(schema)) {
-    schema_.validate();
-}
+    : name_(std::move(name)), schema_(std::move(schema)) {}
 
 const std::string& Table::name() const {
     return name_;
@@ -19,7 +17,7 @@ const Schema& Table::schema() const {
 }
 
 void Table::addRow(Row row) {
-    row.validateAgainst(schema_);
+    schema_.validateRow(row);
     rows_.push_back(std::move(row));
 }
 

@@ -15,9 +15,9 @@ int main() {
     assert(evaluateIntegerComparison(7, ComparisonOperator::GREATER_THAN_OR_EQUAL, 7));
 
     Table table("reviews", Schema({
-        Column("id", ColumnType::INTEGER),
-        Column("rating", ColumnType::INTEGER),
-        Column("embedding", ColumnType::VECTOR, 2),
+        Column("id", Int64Type{}),
+        Column("rating", Int64Type{}),
+        Column("embedding", VectorType{2}),
     }));
 
     table.addRow(Row({int64_t{1}, int64_t{8}, std::vector<float>{0.0f, 0.0f}}));

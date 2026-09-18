@@ -2,19 +2,16 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
 namespace vrdb {
 
-enum class ColumnType {
-    INTEGER,
-    TEXT,
-    VECTOR
-};
+using VectorValue = std::vector<float>;
 
-using Value = std::variant<int64_t, std::string, std::vector<float>>;
+using Value = std::variant<std::int64_t, std::string, VectorValue>;
 
-ColumnType valueType(const Value& value);
+std::string_view valueTypeName(const Value& value) noexcept;
 
 } // namespace vrdb
