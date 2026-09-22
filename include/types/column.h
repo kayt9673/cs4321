@@ -1,19 +1,16 @@
 #pragma once
 
-#include "types/value.h"
+#include "types/data_type.h"
 
-#include <cstddef>
-#include <optional>
 #include <string>
 
 namespace vrdb {
 
 struct Column {
     std::string name;
-    ColumnType type;
-    std::optional<std::size_t> vectorDimension;
+    DataType type;
 
-    Column(std::string columnName, ColumnType columnType, std::optional<std::size_t> dimension = std::nullopt);
+    Column(std::string columnName, DataType dataType);
 };
 
 } // namespace vrdb

@@ -13,10 +13,11 @@ Database::Database(const std::filesystem::path& storagePath)
 }
 
 void Database::createTable(const std::string& name, const Schema& schema) {
+    Catalog::validateTableName(name);
     if (catalog_.hasTable(name)) {
         throw DatabaseError("table already exists: " + name);
     }
-    storage_->createTable(name);
+    storage_->createTable(name, schema);
     try {
         catalog_.createTable(name, schema);
     } catch (...) {
@@ -35,7 +36,7 @@ void Database::dropTable(const std::string& name) {
 
 void Database::insert(const std::string& tableName, const Row& row) {
     const auto& schema = catalog_.getSchema(tableName);
-    row.validateAgainst(schema);
+    schema.validateRow(row);
     storage_->appendRow(tableName, schema, row);
 }
 

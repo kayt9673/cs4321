@@ -15,10 +15,10 @@ int main() {
     assert(evaluateIntegerComparison(7, ComparisonOperator::GREATER_THAN_OR_EQUAL, 7));
 
     Schema schema({
-        Column("id", ColumnType::INTEGER),
-        Column("rating", ColumnType::INTEGER),
-        Column("review", ColumnType::TEXT),
-        Column("embedding", ColumnType::VECTOR, 2),
+        Column("id", Int64Type{}),
+        Column("rating", Int64Type{}),
+        Column("review", TextType{}),
+        Column("embedding", VectorType{2}),
     });
 
     std::vector<Row> rows({
@@ -40,6 +40,11 @@ int main() {
     assert(result.rows.size() == 1);
     assert(std::get<int64_t>(result.rows[0].value(0)) == 1);
     assert(std::get<std::string>(result.rows[0].value(1)) == "keep");
+
+    Query emptyResultQuery;
+    emptyResultQuery.table = "reviews";
+    emptyResultQuery.limit = 0;
+    assert(executor.execute(emptyResultQuery, schema, rows).rows.empty());
 
     return 0;
 }

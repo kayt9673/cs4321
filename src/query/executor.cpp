@@ -4,68 +4,127 @@
 #include "vector/distance.h"
 
 #include <type_traits>
+#include <unordered_set>
 #include <utility>
 
 namespace vrdb {
+namespace {
+
+struct ResolvedPredicate {
+    ColumnId column;
+    const Predicate* predicate;
+};
+
+ColumnId requireColumn(const Schema& schema, std::string_view name) {
+    const auto id = schema.columnId(name);
+    if (!id) {
+        throw QueryError("unknown column: " + std::string(name));
+    }
+    return *id;
+}
+
+const std::string& predicateColumnName(const Predicate& predicate) {
+    return std::visit([](const auto& typedPredicate) -> const std::string& {
+        return typedPredicate.column;
+    }, predicate);
+}
+
+void validatePredicate(const Predicate& predicate, ColumnId columnId, const Schema& schema) {
+    const auto& column = schema.column(columnId);
+    std::visit([&](const auto& typedPredicate) {
+        using PredicateType = std::decay_t<decltype(typedPredicate)>;
+        if constexpr (std::is_same_v<PredicateType, IntegerPredicate>) {
+            if (!isInteger(column.type)) {
+                throw QueryError("integer predicate references a non-integer column: " + column.name);
+            }
+        } else if constexpr (std::is_same_v<PredicateType, TextPredicate>) {
+            if (!isText(column.type)) {
+                throw QueryError("text predicate references a non-text column: " + column.name);
+            }
+        } else {
+            if (!isVector(column.type)) {
+                throw QueryError("vector predicate references a non-vector column: " + column.name);
+            }
+            const auto expectedDimension = std::get<VectorType>(column.type).dimension();
+            if (typedPredicate.referenceVector.size() != expectedDimension) {
+                throw QueryError(
+                    "vector predicate for column '" + column.name + "' expects dimension " +
+                    std::to_string(expectedDimension) + " but received " +
+                    std::to_string(typedPredicate.referenceVector.size()));
+            }
+        }
+    }, predicate);
+}
+
+} // namespace
 
 QueryResult QueryExecutor::execute(const Query& query, const Schema& schema, const std::vector<Row>& rows) const {
-    QueryResult result{projectSchema(schema, query.projection), {}};
+    std::vector<ColumnId> projection;
+    projection.reserve(query.projection.size());
+    std::unordered_set<ColumnId> projectedColumns;
+    for (const auto& columnName : query.projection) {
+        const auto id = requireColumn(schema, columnName);
+        if (!projectedColumns.insert(id).second) {
+            throw QueryError("duplicate projected column: " + columnName);
+        }
+        projection.push_back(id);
+    }
+
+    std::vector<ResolvedPredicate> predicates;
+    predicates.reserve(query.predicates.size());
+    for (const auto& predicate : query.predicates) {
+        const auto id = requireColumn(schema, predicateColumnName(predicate));
+        validatePredicate(predicate, id, schema);
+        predicates.push_back(ResolvedPredicate{id, &predicate});
+    }
+
+    QueryResult result{projectSchema(schema, projection), {}};
+    if (query.limit && *query.limit == 0) {
+        return result;
+    }
     std::size_t skipped = 0;
 
     for (const auto& row : rows) {
         bool include = true;
-        for (const auto& predicate : query.predicates) {
-            if (!evaluatePredicate(predicate, schema, row)) {
+        for (const auto& resolved : predicates) {
+            if (!evaluatePredicate(*resolved.predicate, resolved.column, row)) {
                 include = false;
                 break;
             }
         }
-        if (include) {
-            if (skipped < query.offset) {
-                ++skipped;
-                continue;
-            }
-            result.rows.push_back(projectRow(row, schema, query.projection));
-            if (query.limit && result.rows.size() >= *query.limit) {
-                break;
-            }
+        if (!include) {
+            continue;
+        }
+        if (skipped < query.offset) {
+            ++skipped;
+            continue;
+        }
+
+        result.rows.push_back(projectRow(row, projection));
+        if (query.limit && result.rows.size() >= *query.limit) {
+            break;
         }
     }
     return result;
 }
 
-bool QueryExecutor::evaluatePredicate(const Predicate& predicate, const Schema& schema, const Row& row) const {
+bool QueryExecutor::evaluatePredicate(const Predicate& predicate, ColumnId column, const Row& row) const {
     return std::visit([&](const auto& typedPredicate) -> bool {
         using PredicateType = std::decay_t<decltype(typedPredicate)>;
-        const auto index = schema.columnIndex(typedPredicate.column);
-        const auto& column = schema.column(index);
-
         if constexpr (std::is_same_v<PredicateType, IntegerPredicate>) {
-            if (column.type != ColumnType::INTEGER) {
-                throw QueryError("integer predicate references a non-integer column");
-            }
-            const auto* value = std::get_if<int64_t>(&row.value(index));
+            const auto* value = std::get_if<std::int64_t>(&row.value(column));
             if (!value) {
                 throw QueryError("row value is not an integer");
             }
             return evaluateIntegerComparison(*value, typedPredicate.op, typedPredicate.value);
         } else if constexpr (std::is_same_v<PredicateType, TextPredicate>) {
-            if (column.type != ColumnType::TEXT) {
-                throw QueryError("text predicate references a non-text column");
-            }
-            const auto* value = std::get_if<std::string>(&row.value(index));
+            const auto* value = std::get_if<std::string>(&row.value(column));
             if (!value) {
                 throw QueryError("row value is not text");
             }
             return evaluateTextComparison(*value, typedPredicate.op, typedPredicate.value);
         } else {
-            if (column.type != ColumnType::VECTOR) {
-                throw QueryError("vector predicate references a non-vector column");
-            }
-            if (!column.vectorDimension || typedPredicate.referenceVector.size() != *column.vectorDimension) {
-                throw QueryError("vector predicate reference dimension does not match column");
-            }
-            const auto* value = std::get_if<Vector>(&row.value(index));
+            const auto* value = std::get_if<VectorValue>(&row.value(column));
             if (!value) {
                 throw QueryError("row value is not a vector");
             }
@@ -75,28 +134,28 @@ bool QueryExecutor::evaluatePredicate(const Predicate& predicate, const Schema& 
     }, predicate);
 }
 
-Row QueryExecutor::projectRow(const Row& row, const Schema& schema, const std::vector<std::string>& projection) const {
+Row QueryExecutor::projectRow(const Row& row, const std::vector<ColumnId>& projection) const {
     if (projection.empty()) {
         return row;
     }
 
     std::vector<Value> values;
     values.reserve(projection.size());
-    for (const auto& columnName : projection) {
-        values.push_back(row.value(schema.columnIndex(columnName)));
+    for (const auto column : projection) {
+        values.push_back(row.value(column));
     }
     return Row(std::move(values));
 }
 
-Schema QueryExecutor::projectSchema(const Schema& schema, const std::vector<std::string>& projection) const {
+Schema QueryExecutor::projectSchema(const Schema& schema, const std::vector<ColumnId>& projection) const {
     if (projection.empty()) {
         return schema;
     }
 
     std::vector<Column> columns;
     columns.reserve(projection.size());
-    for (const auto& columnName : projection) {
-        columns.push_back(schema.column(columnName));
+    for (const auto column : projection) {
+        columns.push_back(schema.column(column));
     }
     return Schema(std::move(columns));
 }

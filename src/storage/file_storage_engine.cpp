@@ -13,7 +13,7 @@ FileStorageEngine::FileStorageEngine(std::filesystem::path rootDirectory)
     std::filesystem::create_directories(rootDirectory_);
 }
 
-void FileStorageEngine::createTable(const std::string& tableName) {
+void FileStorageEngine::createTable(const std::string& tableName, const Schema& schema) {
     std::filesystem::create_directories(rootDirectory_);
 
     std::ofstream file(tablePath(tableName), std::ios::trunc);
@@ -21,18 +21,29 @@ void FileStorageEngine::createTable(const std::string& tableName) {
         throw StorageError("failed to create table storage for " + tableName);
     }
 
-    file << "# vrdb table rows v1 " << tableName << '\n';
+    std::vector<std::string> header;
+    header.reserve(schema.size());
+    for (const auto& column : schema.columns()) {
+        header.push_back(column.name);
+    }
+    writeCsvRecord(file, header);
+    if (!file) {
+        throw StorageError("failed to write table header for " + tableName);
+    }
 }
 
 void FileStorageEngine::appendRow(const std::string& tableName, const Schema& schema, const Row& row) {
-    row.validateAgainst(schema);
+    schema.validateRow(row);
 
     std::ofstream file(tablePath(tableName), std::ios::app);
     if (!file) {
         throw StorageError("failed to append row to " + tableName);
     }
 
-    file << serializeRow(row) << '\n';
+    writeCsvRecord(file, serializeRowForCsv(row));
+    if (!file) {
+        throw StorageError("failed to write row to " + tableName);
+    }
 }
 
 std::vector<Row> FileStorageEngine::readRows(const std::string& tableName, const Schema& schema) const {
@@ -41,25 +52,37 @@ std::vector<Row> FileStorageEngine::readRows(const std::string& tableName, const
         throw StorageError("failed to read table storage for " + tableName);
     }
 
-    std::vector<Row> rows;
-    std::string line;
-    while (std::getline(file, line)) {
-        if (line.empty() || line[0] == '#') {
-            continue;
+    std::vector<std::string> fields;
+    if (!readCsvRecord(file, fields)) {
+        throw StorageError("table CSV is missing its header: " + tableName);
+    }
+    if (fields.size() != schema.size()) {
+        throw StorageError("table CSV header width does not match schema: " + tableName);
+    }
+    for (std::size_t index = 0; index < fields.size(); ++index) {
+        const auto id = static_cast<ColumnId>(index);
+        if (fields[index] != schema.column(id).name) {
+            throw StorageError("table CSV header does not match schema: " + tableName);
         }
-
-        rows.push_back(deserializeRow(line, schema));
     }
 
+    std::vector<Row> rows;
+    while (readCsvRecord(file, fields)) {
+        rows.push_back(deserializeRowFromCsv(fields, schema));
+    }
     return rows;
 }
 
 void FileStorageEngine::dropTable(const std::string& tableName) {
-    std::filesystem::remove(tablePath(tableName));
+    std::error_code error;
+    const bool removed = std::filesystem::remove(tablePath(tableName), error);
+    if (error || !removed) {
+        throw StorageError("failed to remove table storage for " + tableName);
+    }
 }
 
 std::filesystem::path FileStorageEngine::tablePath(const std::string& tableName) const {
-    return rootDirectory_ / (tableName + ".vrdb");
+    return rootDirectory_ / (tableName + ".csv");
 }
 
 } // namespace vrdb

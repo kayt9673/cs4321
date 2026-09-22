@@ -14,8 +14,8 @@ A working checklist for the vector-relational database. 155 items across 17 phas
 
 | Phase | Items | Done | Owner |
 |---|---:|---:|---|
-| [1. Lock Down Core Data Model](#phase-1-lock-down-core-data-model) | 1–7 | 0 / 7 | _unassigned_ |
-| [2. Catalog And Table Metadata](#phase-2-catalog-and-table-metadata) | 8–18 | 0 / 11 | _unassigned_ |
+| [1. Lock Down Core Data Model](#phase-1-lock-down-core-data-model) | 1–7 | 7 / 7 | _team_ |
+| [2. Catalog And Table Metadata](#phase-2-catalog-and-table-metadata) | 8–18 | 11 / 11 | _team_ |
 | [3. Storage Format Correctness](#phase-3-storage-format-correctness) | 19–30 | 0 / 12 | _unassigned_ |
 | [4. Database API](#phase-4-database-api) | 31–40 | 0 / 10 | _unassigned_ |
 | [5. Query Representation](#phase-5-query-representation) | 41–52 | 0 / 12 | _unassigned_ |
@@ -26,12 +26,12 @@ A working checklist for the vector-relational database. 155 items across 17 phas
 | [10. Sequential Scan Executor](#phase-10-sequential-scan-executor) | 87–99 | 0 / 13 | _unassigned_ |
 | [11. Programmatic Query API](#phase-11-programmatic-query-api) | 100–105 | 0 / 6 | _unassigned_ |
 | [12. Optional Simple SQL Subset](#phase-12-optional-simple-sql-subset) | 106–115 | 0 / 10 | _unassigned_ |
-| [13. CLI / Demo Tool](#phase-13-cli--demo-tool) | 116–122 | 0 / 7 | _unassigned_ |
+| [13. CLI / Demo Tool](#phase-13-cli--demo-tool) | 116–122 | 6 / 7 | _team_ |
 | [14. Import / Ingestion](#phase-14-import--ingestion) | 123–131 | 0 / 9 | _unassigned_ |
 | [15. Error Handling And Result Types](#phase-15-error-handling-and-result-types) | 132–139 | 0 / 8 | _unassigned_ |
 | [16. Durability Basics](#phase-16-durability-basics) | 140–147 | 0 / 8 | _unassigned_ |
 | [17. Testing Infrastructure](#phase-17-testing-infrastructure) | 148–155 | 0 / 8 | _unassigned_ |
-| **Total** | **1–155** | **0 / 155** | |
+| **Total** | **1–155** | **24 / 155** | |
 
 ---
 
@@ -39,23 +39,23 @@ A working checklist for the vector-relational database. 155 items across 17 phas
 
 **Owner:** _unassigned_
 
-- [ ] **1.** Define exact ownership and invariants for `Schema`, `Column`, `Row`, and `Value`.
-- [ ] **2.** Add tests for valid/invalid schemas:
-  - [ ] empty schema
-  - [ ] duplicate column names
-  - [ ] vector column with dimension 0
-  - [ ] non-vector column with vector dimension set
-- [ ] **3.** Add tests for valid/invalid rows:
-  - [ ] wrong number of values
-  - [ ] wrong type in a column
-  - [ ] vector dimension mismatch
-- [ ] **4.** Add helper functions:
-  - [ ] `columnIndex(name)`
-  - [ ] `columnType(name)`
-  - [ ] `validateRow(row)`
-- [ ] **5.** Decide whether column names are case-sensitive. Document it.
-- [ ] **6.** Add clear error messages for all validation failures.
-- [ ] **7.** Add a small `Status`/`Result` type or commit to exceptions consistently.
+- [x] **1.** Define exact ownership and invariants for `Schema`, `Column`, `Row`, and `Value`.
+- [x] **2.** Add tests for valid/invalid schemas:
+  - [x] empty schema
+  - [x] duplicate column names
+  - [x] vector column with dimension 0
+  - [x] make non-vector dimensions unrepresentable through `DataType`
+- [x] **3.** Add tests for valid/invalid rows:
+  - [x] wrong number of values
+  - [x] wrong type in a column
+  - [x] vector dimension mismatch
+- [x] **4.** Add helper functions:
+  - [x] `columnId(name)`
+  - [x] `column(name).type`
+  - [x] `validateRow(row)`
+- [x] **5.** Decide whether column names are case-sensitive. Document it.
+- [x] **6.** Add clear error messages for all validation failures.
+- [x] **7.** Commit to the documented exception hierarchy.
 
 ---
 
@@ -63,17 +63,17 @@ A working checklist for the vector-relational database. 155 items across 17 phas
 
 **Owner:** _unassigned_
 
-- [ ] **8.** Implement a persistent database catalog file.
-- [ ] **9.** Store table names and schemas in the catalog.
-- [ ] **10.** On database startup, load existing table metadata.
-- [ ] **11.** Prevent duplicate table creation across restarts.
-- [ ] **12.** Add `Database::listTables()`.
-- [ ] **13.** Add `Database::hasTable(name)`.
-- [ ] **14.** Add `Database::dropTable(name)` if your project scope allows it.
-- [ ] **15.** Add tests proving tables survive process restart.
-- [ ] **16.** Add tests for invalid table names.
-- [ ] **17.** Decide allowed table/column name characters.
-- [ ] **18.** Document catalog file format.
+- [x] **8.** Implement a persistent database catalog file.
+- [x] **9.** Store table names and schemas in the catalog.
+- [x] **10.** On database startup, load existing table metadata.
+- [x] **11.** Prevent duplicate table creation across restarts.
+- [x] **12.** Add `Database::listTables()`.
+- [x] **13.** Add `Database::hasTable(name)`.
+- [x] **14.** Add `Database::dropTable(name)` if your project scope allows it.
+- [x] **15.** Add tests proving tables survive process restart.
+- [x] **16.** Add tests for invalid table names.
+- [x] **17.** Decide allowed table/column name characters.
+- [x] **18.** Document catalog file format.
 
 ---
 
@@ -296,13 +296,13 @@ A working checklist for the vector-relational database. 155 items across 17 phas
 
 **Owner:** _unassigned_
 
-- [ ] **116.** Add a small command-line app.
-- [ ] **117.** Support creating a demo database.
-- [ ] **118.** Support inserting sample rows.
-- [ ] **119.** Support running a hardcoded query.
+- [x] **116.** Add a small command-line app.
+- [x] **117.** Support creating a demo database.
+- [x] **118.** Support inserting sample rows.
+- [x] **119.** Support running a hardcoded query.
 - [ ] **120.** Optionally support reading query JSON from a file.
-- [ ] **121.** Print query results in a table-like format.
-- [ ] **122.** Add README examples.
+- [x] **121.** Print query results as CSV.
+- [x] **122.** Add README examples.
 
 ---
 
@@ -400,7 +400,8 @@ Item **7** and item **132** are the same decision made twice, eleven phases apar
 
 ### Defects addressed from the original tree
 
-- **Catalog-backed startup is now present.** `Database` loads table names and schemas from `catalog.vrdb`, and row data lives under the database directory's `tables/` subdirectory.
+- **Catalog-backed startup is now present.** `Database` loads table names and schemas from `catalog.csv`, and row data lives in one CSV file per table under the database directory's `tables/` subdirectory.
+- **A minimal CLI is now present.** `vrdb_cli` initializes or reopens a database, creates tables, inserts typed rows, lists and describes tables, and prints full-table scans as CSV. SQL parsing remains deferred.
 - **Queries now read persisted rows through `Database::select()`.** The executor takes a schema and row set, returning `QueryResult` with projection support instead of reading a separate in-memory `Table`.
 
 ### Relation to the Phase 1 work split

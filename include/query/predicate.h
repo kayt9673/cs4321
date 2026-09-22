@@ -1,5 +1,7 @@
 #pragma once
 
+#include "vector/distance.h"
+
 #include <cstdint>
 #include <string>
 #include <variant>
@@ -26,11 +28,6 @@ struct TextPredicate {
     std::string column;
     ComparisonOperator op;
     std::string value;
-};
-
-enum class DistanceMetric {
-    EUCLIDEAN,
-    COSINE
 };
 
 struct VectorPredicate {

@@ -12,10 +12,10 @@ int main() {
     Database db("./data");
 
     Schema schema({
-        Column("id", ColumnType::INTEGER),
-        Column("rating", ColumnType::INTEGER),
-        Column("review", ColumnType::TEXT),
-        Column("embedding", ColumnType::VECTOR, 4),
+        Column("id", Int64Type{}),
+        Column("rating", Int64Type{}),
+        Column("review", TextType{}),
+        Column("embedding", VectorType{4}),
     });
 
     if (db.hasTable("reviews")) {

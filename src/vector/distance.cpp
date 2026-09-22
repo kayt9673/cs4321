@@ -1,7 +1,6 @@
 #include "vector/distance.h"
 
 #include "db/errors.h"
-#include "query/predicate.h"
 
 #include <cmath>
 

@@ -1,5 +1,13 @@
 # **Milestone 1 Design**
 
+> **Implementation update:** This document originated before the schema branch
+> and mainline catalog work were combined. The current implementation uses
+> `DataType = variant<Int64Type, TextType, VectorType>`, `ColumnId`/`RowId`,
+> schema-owned row validation, and the CSV directory format documented in
+> [storage-format.md](storage-format.md). Older `ColumnType + vectorDimension`
+> and `.vrdb` examples below are historical proposal material, not the current
+> public API or file format.
+
 ## **Codebase Structure**
 
 The database is organized into the following modules:
@@ -400,4 +408,3 @@ primary keys
 full-text search  
 vector ANN indexing  
 relational indexing
-

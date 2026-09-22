@@ -18,6 +18,8 @@ class Catalog {
 public:
     explicit Catalog(std::filesystem::path databasePath);
 
+    static void validateTableName(const std::string& name);
+
     void load();
     void createTable(const std::string& name, const Schema& schema);
     void dropTable(const std::string& name);

@@ -14,9 +14,9 @@ public:
     QueryResult execute(const Query& query, const Schema& schema, const std::vector<Row>& rows) const;
 
 private:
-    bool evaluatePredicate(const Predicate& predicate, const Schema& schema, const Row& row) const;
-    Row projectRow(const Row& row, const Schema& schema, const std::vector<std::string>& projection) const;
-    Schema projectSchema(const Schema& schema, const std::vector<std::string>& projection) const;
+    bool evaluatePredicate(const Predicate& predicate, ColumnId column, const Row& row) const;
+    Row projectRow(const Row& row, const std::vector<ColumnId>& projection) const;
+    Schema projectSchema(const Schema& schema, const std::vector<ColumnId>& projection) const;
 };
 
 } // namespace vrdb

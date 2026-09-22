@@ -1,5 +1,11 @@
 # **C++ Vector-Relational Database**
 
+> **Current implementation note:** Persistent databases use a directory with
+> `catalog.csv` plus one row-oriented CSV file per table under `tables/`. The
+> logical schema uses parameterized `VectorType` values and stable `ColumnId`
+> identifiers. See [storage-format.md](storage-format.md) for the concrete
+> format and recovery behavior.
+
 ## **Summary & Motivation**
 
 This project implements a small vector-relational database management system in C++.

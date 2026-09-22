@@ -2,14 +2,14 @@
 
 namespace vrdb {
 
-ColumnType valueType(const Value& value) {
-    if (std::holds_alternative<int64_t>(value)) {
-        return ColumnType::INTEGER;
+std::string_view valueTypeName(const Value& value) noexcept {
+    if (std::holds_alternative<std::int64_t>(value)) {
+        return "INTEGER";
     }
     if (std::holds_alternative<std::string>(value)) {
-        return ColumnType::TEXT;
+        return "TEXT";
     }
-    return ColumnType::VECTOR;
+    return "VECTOR";
 }
 
 } // namespace vrdb
