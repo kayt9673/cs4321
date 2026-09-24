@@ -1,19 +1,12 @@
-#include "types/schema.h"
+#include "types/schema.hpp"
 
-#include "db/errors.h"
-#include "types/row.h"
+#include "db/errors.hpp"
+#include "types/row.hpp"
 
 #include <limits>
 #include <utility>
 
 namespace vrdb {
-
-Column::Column(std::string columnName, DataType dataType)
-    : name(std::move(columnName)), type(std::move(dataType)) {
-    if (name.empty()) {
-        throw SchemaError("column name cannot be empty");
-    }
-}
 
 Schema::Schema(std::vector<Column> columns)
     : columns_(std::move(columns)) {
@@ -27,11 +20,10 @@ Schema::Schema(std::vector<Column> columns)
             throw SchemaError("schema has too many columns for ColumnId");
         }
 
+        const auto& column = columns_[index];
+        column.validate();
         const auto id = static_cast<ColumnId>(index);
         const auto& name = columns_[index].name;
-        if (name.empty()) {
-            throw SchemaError("column name cannot be empty");
-        }
         if (!nameToId_.emplace(name, id).second) {
             throw SchemaError("duplicate column name: " + name);
         }
@@ -78,23 +70,23 @@ std::optional<ColumnId> Schema::columnId(std::string_view name) const {
     return found->second;
 }
 
-void Schema::validateValue(ColumnId columnId, const Value& value) const {
+void Schema::validateCell(ColumnId columnId, const Cell& cell) const {
     const auto& expectedColumn = column(columnId);
     const bool correctType =
-        (isInteger(expectedColumn.type) && std::holds_alternative<std::int64_t>(value)) ||
-        (isText(expectedColumn.type) && std::holds_alternative<std::string>(value)) ||
-        (isVector(expectedColumn.type) && std::holds_alternative<VectorValue>(value));
+        (isInteger(expectedColumn.type) && std::holds_alternative<std::int64_t>(cell)) ||
+        (isText(expectedColumn.type) && std::holds_alternative<std::string>(cell)) ||
+        (isVector(expectedColumn.type) && std::holds_alternative<std::vector<double>>(cell));
 
     if (!correctType) {
         throw SchemaError(
             "column '" + expectedColumn.name + "' expects " +
-            std::string(dataTypeName(expectedColumn.type)) + " but received " +
-            std::string(valueTypeName(value)));
+            std::string(columnTypeName(expectedColumn.type)) + " but received " +
+            std::string(cellTypeName(cell)));
     }
 
     if (isVector(expectedColumn.type)) {
-        const auto expectedDimension = std::get<VectorType>(expectedColumn.type).dimension();
-        const auto receivedDimension = std::get<VectorValue>(value).size();
+        const auto expectedDimension = expectedColumn.vectorDimension;
+        const auto receivedDimension = std::get<std::vector<double>>(cell).size();
         if (expectedDimension != receivedDimension) {
             throw SchemaError(
                 "vector column '" + expectedColumn.name + "' expects dimension " +
@@ -107,13 +99,13 @@ void Schema::validateValue(ColumnId columnId, const Value& value) const {
 void Schema::validateRow(const Row& row) const {
     if (row.size() != size()) {
         throw SchemaError(
-            "row expects " + std::to_string(size()) + " values but received " +
+            "row expects " + std::to_string(size()) + " cells but received " +
             std::to_string(row.size()));
     }
 
     for (std::size_t index = 0; index < size(); ++index) {
         const auto id = static_cast<ColumnId>(index);
-        validateValue(id, row.value(id));
+        validateCell(id, row.cell(id));
     }
 }
 

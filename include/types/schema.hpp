@@ -1,8 +1,8 @@
 #pragma once
 
-#include "types/column.h"
-#include "types/ids.h"
-#include "types/value.h"
+#include "types/column.hpp"
+#include "types/ids.hpp"
+#include "types/cell.hpp"
 
 #include <cstddef>
 #include <optional>
@@ -27,7 +27,7 @@ public:
 
     bool hasColumn(std::string_view name) const;
     std::optional<ColumnId> columnId(std::string_view name) const;
-    void validateValue(ColumnId column, const Value& value) const;
+    void validateCell(ColumnId column, const Cell& cell) const;
     void validateRow(const Row& row) const;
 
 private:

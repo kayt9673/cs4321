@@ -1,9 +1,9 @@
 #pragma once
 
-#include "query/query.h"
-#include "query/query_result.h"
-#include "types/row.h"
-#include "types/schema.h"
+#include "query/query.hpp"
+#include "query/query_result.hpp"
+#include "types/row.hpp"
+#include "types/schema.hpp"
 
 #include <vector>
 

@@ -1,5 +1,5 @@
-#include "db/errors.h"
-#include "vector/distance.h"
+#include "db/errors.hpp"
+#include "vector/distance.hpp"
 
 #include <cassert>
 #include <cmath>
@@ -9,14 +9,14 @@
 int main() {
     using namespace vrdb;
 
-    assert(std::fabs(euclideanDistance({0.0f, 0.0f}, {3.0f, 4.0f}) - 5.0f) < 0.0001f);
-    assert(std::fabs(distance({0.0f, 0.0f}, {3.0f, 4.0f}, DistanceMetric::EUCLIDEAN) - 5.0f) < 0.0001f);
-    assert(std::fabs(cosineDistance({1.0f, 0.0f}, {1.0f, 0.0f}) - 0.0f) < 0.0001f);
-    assert(std::fabs(cosineDistance({1.0f, 0.0f}, {0.0f, 1.0f}) - 1.0f) < 0.0001f);
+    assert(std::fabs(euclideanDistance({0.0, 0.0}, {3.0, 4.0}) - 5.0) < 0.0001);
+    assert(std::fabs(distance({0.0, 0.0}, {3.0, 4.0}, DistanceMetric::EUCLIDEAN) - 5.0) < 0.0001);
+    assert(std::fabs(cosineDistance({1.0, 0.0}, {1.0, 0.0}) - 0.0) < 0.0001);
+    assert(std::fabs(cosineDistance({1.0, 0.0}, {0.0, 1.0}) - 1.0) < 0.0001);
 
     bool threw = false;
     try {
-        euclideanDistance({1.0f}, {1.0f, 2.0f});
+        euclideanDistance({1.0}, {1.0, 2.0});
     } catch (const QueryError&) {
         threw = true;
     }
@@ -24,11 +24,14 @@ int main() {
 
     threw = false;
     try {
-        cosineDistance({0.0f, 0.0f}, {1.0f, 0.0f});
+        cosineDistance({0.0, 0.0}, {1.0, 0.0});
     } catch (const QueryError&) {
         threw = true;
     }
     assert(threw);
 
+    // Neither coordinates nor the resulting distance may narrow to float32.
+    assert(euclideanDistance({16777216.0}, {16777217.0}) == 1.0);
+    assert(euclideanDistance({0.0}, {1.0000000001}) == 1.0000000001);
     return 0;
 }

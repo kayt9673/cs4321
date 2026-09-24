@@ -1,11 +1,11 @@
 #pragma once
 
-#include "db/catalog.h"
-#include "query/executor.h"
-#include "query/query.h"
-#include "query/query_result.h"
-#include "storage/file_storage_engine.h"
-#include "storage/storage_engine.h"
+#include "db/catalog.hpp"
+#include "query/executor.hpp"
+#include "query/query.hpp"
+#include "query/query_result.hpp"
+#include "storage/file_storage_engine.hpp"
+#include "storage/storage_engine.hpp"
 
 #include <filesystem>
 #include <memory>

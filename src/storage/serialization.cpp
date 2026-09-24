@@ -1,6 +1,6 @@
-#include "storage/serialization.h"
+#include "storage/serialization.hpp"
 
-#include "db/errors.h"
+#include "db/errors.hpp"
 
 #include <algorithm>
 #include <iomanip>
@@ -31,10 +31,10 @@ std::int64_t parseInteger(const std::string& field, const std::string& columnNam
     }
 }
 
-float parseFloat(const std::string& field, const std::string& columnName) {
+double parseFloat(const std::string& field, const std::string& columnName) {
     try {
         std::size_t parsed = 0;
-        const auto value = std::stof(field, &parsed);
+        const auto value = std::stod(field, &parsed);
         if (parsed != field.size()) {
             throw StorageError("invalid vector value in column '" + columnName + "'");
         }
@@ -46,12 +46,12 @@ float parseFloat(const std::string& field, const std::string& columnName) {
     }
 }
 
-VectorValue parseVector(const std::string& field, const Column& column) {
+std::vector<double> parseVector(const std::string& field, const Column& column) {
     if (field.size() < 2 || field.front() != '[' || field.back() != ']') {
         throw StorageError("invalid vector encoding in column '" + column.name + "'");
     }
 
-    VectorValue vector;
+    std::vector<double> vector;
     const auto payload = field.substr(1, field.size() - 2);
     if (!payload.empty()) {
         if (payload.front() == ',' || payload.back() == ',') {
@@ -67,7 +67,7 @@ VectorValue parseVector(const std::string& field, const Column& column) {
         }
     }
 
-    const auto expectedDimension = std::get<VectorType>(column.type).dimension();
+    const auto expectedDimension = column.vectorDimension;
     if (vector.size() != expectedDimension) {
         throw StorageError(
             "stored vector column '" + column.name + "' expects dimension " +
@@ -170,28 +170,28 @@ bool readCsvRecord(std::istream& input, std::vector<std::string>& fields) {
     return true;
 }
 
-std::string serializeValueForCsv(const Value& value) {
-    if (const auto* integer = std::get_if<std::int64_t>(&value)) {
+std::string serializeCellForCsv(const Cell& cell) {
+    if (const auto* integer = std::get_if<std::int64_t>(&cell)) {
         return std::to_string(*integer);
     }
-    if (const auto* text = std::get_if<std::string>(&value)) {
+    if (const auto* text = std::get_if<std::string>(&cell)) {
         return *text;
     }
 
-    const auto& vector = std::get<VectorValue>(value);
+    const auto& vector = std::get<std::vector<double>>(cell);
     std::ostringstream output;
     output << '[';
     for (std::size_t index = 0; index < vector.size(); ++index) {
         if (index > 0) {
             output << ',';
         }
-        output << std::setprecision(9) << vector[index];
+        output << std::setprecision(std::numeric_limits<double>::max_digits10) << vector[index];
     }
     output << ']';
     return output.str();
 }
 
-Value deserializeValueFromCsv(const std::string& field, const Column& column) {
+Cell deserializeCellFromCsv(const std::string& field, const Column& column) {
     if (isInteger(column.type)) {
         return parseInteger(field, column.name);
     }
@@ -204,8 +204,8 @@ Value deserializeValueFromCsv(const std::string& field, const Column& column) {
 std::vector<std::string> serializeRowForCsv(const Row& row) {
     std::vector<std::string> fields;
     fields.reserve(row.size());
-    for (const auto& value : row.values()) {
-        fields.push_back(serializeValueForCsv(value));
+    for (const auto& cell : row.cells()) {
+        fields.push_back(serializeCellForCsv(cell));
     }
     return fields;
 }
@@ -217,36 +217,36 @@ Row deserializeRowFromCsv(const std::vector<std::string>& fields, const Schema& 
             std::to_string(fields.size()));
     }
 
-    std::vector<Value> values;
-    values.reserve(fields.size());
+    std::vector<Cell> cells;
+    cells.reserve(fields.size());
     for (std::size_t index = 0; index < fields.size(); ++index) {
-        values.push_back(deserializeValueFromCsv(fields[index], schema.column(static_cast<ColumnId>(index))));
+        cells.push_back(deserializeCellFromCsv(fields[index], schema.column(static_cast<ColumnId>(index))));
     }
 
-    Row row(std::move(values));
+    Row row(std::move(cells));
     schema.validateRow(row);
     return row;
 }
 
-std::string serializeTypeDimension(const DataType& type) {
-    if (!isVector(type)) {
+std::string serializeTypeDimension(const Column& column) {
+    if (!isVector(column.type)) {
         return {};
     }
-    return std::to_string(std::get<VectorType>(type).dimension());
+    return std::to_string(column.vectorDimension);
 }
 
-DataType deserializeDataType(const std::string& name, const std::string& dimension) {
+Column deserializeColumn(const std::string& columnName, const std::string& name, const std::string& dimension) {
     if (name == "INTEGER") {
         if (!dimension.empty()) {
             throw StorageError("INTEGER type must not declare a vector dimension");
         }
-        return Int64Type{};
+        return Column(columnName, ColumnType::INTEGER);
     }
     if (name == "TEXT") {
         if (!dimension.empty()) {
             throw StorageError("TEXT type must not declare a vector dimension");
         }
-        return TextType{};
+        return Column(columnName, ColumnType::TEXT);
     }
     if (name == "VECTOR") {
         if (dimension.empty()) {
@@ -263,7 +263,7 @@ DataType deserializeDataType(const std::string& name, const std::string& dimensi
             if (parsed != dimension.size() || value > std::numeric_limits<std::size_t>::max()) {
                 throw StorageError("invalid VECTOR dimension: " + dimension);
             }
-            return VectorType{static_cast<std::size_t>(value)};
+            return Column(columnName, ColumnType::VECTOR, static_cast<std::size_t>(value));
         } catch (const DatabaseError&) {
             throw;
         } catch (const std::exception&) {

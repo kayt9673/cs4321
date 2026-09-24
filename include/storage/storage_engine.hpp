@@ -1,7 +1,7 @@
 #pragma once
 
-#include "types/row.h"
-#include "types/schema.h"
+#include "types/row.hpp"
+#include "types/schema.hpp"
 
 #include <string>
 #include <vector>

@@ -1,7 +1,7 @@
-#include "storage/file_storage_engine.h"
+#include "storage/file_storage_engine.hpp"
 
-#include "db/errors.h"
-#include "storage/serialization.h"
+#include "db/errors.hpp"
+#include "storage/serialization.hpp"
 
 #include <fstream>
 #include <utility>

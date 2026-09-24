@@ -1,7 +1,7 @@
-#include "query/executor.h"
+#include "query/executor.hpp"
 
-#include "db/errors.h"
-#include "vector/distance.h"
+#include "db/errors.hpp"
+#include "vector/distance.hpp"
 
 #include <type_traits>
 #include <unordered_set>
@@ -45,7 +45,7 @@ void validatePredicate(const Predicate& predicate, ColumnId columnId, const Sche
             if (!isVector(column.type)) {
                 throw QueryError("vector predicate references a non-vector column: " + column.name);
             }
-            const auto expectedDimension = std::get<VectorType>(column.type).dimension();
+            const auto expectedDimension = column.vectorDimension;
             if (typedPredicate.referenceVector.size() != expectedDimension) {
                 throw QueryError(
                     "vector predicate for column '" + column.name + "' expects dimension " +
@@ -112,21 +112,21 @@ bool QueryExecutor::evaluatePredicate(const Predicate& predicate, ColumnId colum
     return std::visit([&](const auto& typedPredicate) -> bool {
         using PredicateType = std::decay_t<decltype(typedPredicate)>;
         if constexpr (std::is_same_v<PredicateType, IntegerPredicate>) {
-            const auto* value = std::get_if<std::int64_t>(&row.value(column));
+            const auto* value = std::get_if<std::int64_t>(&row.cell(column));
             if (!value) {
-                throw QueryError("row value is not an integer");
+                throw QueryError("row cell is not an integer");
             }
             return evaluateIntegerComparison(*value, typedPredicate.op, typedPredicate.value);
         } else if constexpr (std::is_same_v<PredicateType, TextPredicate>) {
-            const auto* value = std::get_if<std::string>(&row.value(column));
+            const auto* value = std::get_if<std::string>(&row.cell(column));
             if (!value) {
-                throw QueryError("row value is not text");
+                throw QueryError("row cell is not text");
             }
             return evaluateTextComparison(*value, typedPredicate.op, typedPredicate.value);
         } else {
-            const auto* value = std::get_if<VectorValue>(&row.value(column));
+            const auto* value = std::get_if<std::vector<double>>(&row.cell(column));
             if (!value) {
-                throw QueryError("row value is not a vector");
+                throw QueryError("row cell is not a vector");
             }
             const auto actualDistance = distance(*value, typedPredicate.referenceVector, typedPredicate.metric);
             return evaluateFloatComparison(actualDistance, typedPredicate.op, typedPredicate.threshold);
@@ -139,12 +139,12 @@ Row QueryExecutor::projectRow(const Row& row, const std::vector<ColumnId>& proje
         return row;
     }
 
-    std::vector<Value> values;
-    values.reserve(projection.size());
+    std::vector<Cell> cells;
+    cells.reserve(projection.size());
     for (const auto column : projection) {
-        values.push_back(row.value(column));
+        cells.push_back(row.cell(column));
     }
-    return Row(std::move(values));
+    return Row(std::move(cells));
 }
 
 Schema QueryExecutor::projectSchema(const Schema& schema, const std::vector<ColumnId>& projection) const {

@@ -1,7 +1,7 @@
-#include "db/catalog.h"
+#include "db/catalog.hpp"
 
-#include "db/errors.h"
-#include "storage/serialization.h"
+#include "db/errors.hpp"
+#include "storage/serialization.hpp"
 
 #include <algorithm>
 #include <fstream>
@@ -110,10 +110,10 @@ void Catalog::load() {
         }
 
         const auto columnIndex = parseColumnIndex(fields[2]);
-        auto type = deserializeDataType(fields[4], fields[5]);
+        auto column = deserializeColumn(fields[3], fields[4], fields[5]);
         pendingTables[tableName].emplace_back(
             columnIndex,
-            Column(fields[3], std::move(type)));
+            std::move(column));
     }
 
     for (auto& [tableName, indexedColumns] : pendingTables) {
@@ -207,8 +207,8 @@ void Catalog::persist() const {
                     tableName,
                     std::to_string(index),
                     column.name,
-                    std::string(dataTypeName(column.type)),
-                    serializeTypeDimension(column.type),
+                    std::string(columnTypeName(column.type)),
+                    serializeTypeDimension(column),
                 });
             }
         }

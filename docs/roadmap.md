@@ -39,14 +39,14 @@ A working checklist for the vector-relational database. 155 items across 17 phas
 
 **Owner:** _unassigned_
 
-- [x] **1.** Define exact ownership and invariants for `Schema`, `Column`, `Row`, and `Value`.
+- [x] **1.** Define exact ownership and invariants for `Schema`, `Column`, `Row`, and `Cell`.
 - [x] **2.** Add tests for valid/invalid schemas:
   - [x] empty schema
   - [x] duplicate column names
   - [x] vector column with dimension 0
-  - [x] make non-vector dimensions unrepresentable through `DataType`
+  - [x] reject non-vector dimensions through column and schema validation
 - [x] **3.** Add tests for valid/invalid rows:
-  - [x] wrong number of values
+  - [x] wrong number of cells
   - [x] wrong type in a column
   - [x] vector dimension mismatch
 - [x] **4.** Add helper functions:
@@ -83,7 +83,7 @@ A working checklist for the vector-relational database. 155 items across 17 phas
 
 - [ ] **19.** Define a simple row file format clearly.
 - [ ] **20.** Add file format versioning.
-- [ ] **21.** Add escaping/encoding tests for text values:
+- [ ] **21.** Add escaping/encoding tests for text cells:
   - [ ] pipes
   - [ ] commas
   - [ ] percent signs
@@ -166,7 +166,7 @@ A working checklist for the vector-relational database. 155 items across 17 phas
   - [ ] `>=`
 - [ ] **54.** Add tests for every operator.
 - [ ] **55.** Add tests for negative integers.
-- [ ] **56.** Add tests for boundary values.
+- [ ] **56.** Add tests for boundary cells.
 - [ ] **57.** Add tests combining multiple integer predicates.
 - [ ] **58.** Validate that integer predicates only apply to integer columns.
 - [ ] **59.** Return useful errors for bad predicate types.
@@ -412,7 +412,7 @@ The [Phase 1 CLD Deliverables](https://claude.ai/code/artifact/dff54209-195f-44a
 |---|---|
 | D0 — Interface freeze & file split | Prerequisite for all of Phase 1 |
 | D1 — Error model | 6, 7, 59, 132, 133, 139 |
-| D2 — Value & type system | 1, 4 |
+| D2 — Cell & type system | 1, 4 |
 | D3 — Schema & column model | 1, 2, 4, 5, 9, 17 |
 | D4 — Row & tuple semantics | 1, 3, 4 |
 | D5 — Table & catalog | 8, 10, 11, 12, 13 |

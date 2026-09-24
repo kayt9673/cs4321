@@ -37,7 +37,7 @@ place so a partially written catalog is not exposed on successful replacement.
 ## Table Files
 
 Each table is stored as one row-oriented CSV file. The first record contains the
-column names in schema order. Remaining records contain row values in the same
+column names in schema order. Remaining records contain row cells in the same
 order.
 
 - INTEGER is stored as a base-10 signed integer.
@@ -59,3 +59,11 @@ value types, and vector dimensions are checked against the catalog schema.
   high-throughput vector search.
 - The earlier experimental `.vrdb` line format is not migrated automatically.
   Databases created with that format must be recreated or migrated explicitly.
+
+## Vector precision
+
+Vector coordinates use IEEE 754 binary64 (`double`) in memory. CSV writers use
+`max_digits10` precision (17 significant digits) so finite coordinates can round
+trip without losing precision. Distance calculations and query thresholds also
+use `double`. Existing vector CSV fields remain readable; cells previously
+rounded to float32 do not regain their original precision.

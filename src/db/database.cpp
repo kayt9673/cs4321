@@ -1,6 +1,6 @@
-#include "db/database.h"
+#include "db/database.hpp"
 
-#include "db/errors.h"
+#include "db/errors.hpp"
 
 #include <utility>
 

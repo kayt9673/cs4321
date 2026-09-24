@@ -17,19 +17,61 @@ transactions, joins, or an external database dependency yet.
 - `StorageEngine`: persistence abstraction. `FileStorageEngine` stores one
   RFC 4180-style CSV file per table under the database directory's `tables/`
   subdirectory.
-- `storage/serialization`: CSV record, row-value, vector, and data-type encoding
+- `storage/serialization`: CSV record, row-cell, vector, and data-type encoding
   shared by the catalog and file storage layers.
-- `Schema`, `Column`, `Row`, and `Value`: strongly validated logical data model.
-  `DataType` is a variant of `Int64Type`, `TextType`, and `VectorType`, so only
-  vector columns can carry a dimension.
+- `Schema`, `Column`, `Row`, and `Cell`: strongly validated logical data model.
+  Rows store `Cell` variants containing integers, strings, or 64-bit
+  floating-point vectors.
+  Columns declare a `ColumnType` and a vector dimension;
+  validation rejects dimensions on non-vector columns.
 - `ColumnId` and `RowId`: stable internal identifiers. Schemas resolve names to
   `ColumnId` through a map; `StoredRow` keeps physical identity separate from
-  logical values.
+  logical cells.
 - `Predicate`, `Query`, `QueryResult`, and `QueryExecutor`: programmatic query
   representation and a sequential-scan executor with projection, offset, limit,
   integer predicates, text equality predicates, and vector-distance predicates.
 - `vector/distance`: Euclidean and cosine distance utilities with dimension
   validation.
+
+## Cell Cells
+
+```cpp
+Schema schema({
+    Column("id", ColumnType::INTEGER),
+    Column("title", ColumnType::TEXT),
+    Column("embedding", ColumnType::VECTOR, 3),
+});
+Row row({
+    std::int64_t{1},
+    std::string{"example"},
+    std::vector<double>{0.1, 0.2, 0.3},
+});
+schema.validateRow(row);
+const auto& title = std::get<std::string>(row.cell(ColumnId{1}));
+```
+
+`Cell` is `std::variant<std::int64_t, std::string, std::vector<double>>`.
+Copying a row copies its cells and payloads independently.
+`std::get<T>()` accesses a payload and throws `std::bad_variant_access` for the
+wrong type; `std::get_if<T>()` returns a pointer or null. Predicates also use a
+variant, dispatched with `std::visit`.
+Runtime column metadata remains necessary to load schemas from the CLI and disk.
+The catalog and table CSV formats are unchanged by this C++ API change.
+
+## Memory Ownership
+
+`Database` directly contains its catalog and query executor, and exclusively
+owns a heap-allocated storage engine through `std::unique_ptr`. Its members
+release their owned memory automatically when the database is destroyed.
+A database can be moved but cannot be copied. After moving a database, the
+source may be destroyed or assigned a new database before reuse.
+
+Row collections, row cells, schema columns, and vector coordinates already use
+heap-backed `std::vector` storage, and catalog entries use `std::unordered_map`.
+Local container handles and scalar temporaries can still live on the stack;
+their size does not grow with the number of rows or vector dimensions. Query
+results own their data and remain valid after the database is destroyed.
+Queries currently materialize the entire table in memory before filtering.
 
 ## Milestone 1 Functionality
 
@@ -37,8 +79,8 @@ transactions, joins, or an external database dependency yet.
   under `tables/`, initializes `Catalog`, and loads existing table metadata.
 - Table metadata is persisted in `catalog.csv`; table row files alone do not
   define recognized tables.
-- Supported column/value types are `INTEGER` (`int64_t`), `TEXT`
-  (`std::string`), and `VECTOR(n)` (`std::vector<float>`).
+- Supported column/cell types are `INTEGER` (`int64_t`), `TEXT`
+  (`std::string`), and `VECTOR(n)` (`std::vector<double>`).
 - Schemas preserve column order, require at least one column, require unique
   non-empty column names, and require vector dimensions only for vector columns.
 - Rows are validated against schemas for width, type, and vector dimension.
@@ -71,7 +113,7 @@ my_database/
 
 `catalog.csv` stores table names, column order, logical types, and vector
 dimensions. Each table CSV has a header row followed by logical rows. TEXT
-values use CSV quote escaping, including embedded commas, quotes, and newlines.
+cells use CSV quote escaping, including embedded commas, quotes, and newlines.
 A vector is stored in one CSV field such as `"[0.1,-0.2,0.3]"`.
 
 The current storage is row-oriented because inserts and queries operate on

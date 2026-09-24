@@ -1,5 +1,5 @@
-#include "db/database.h"
-#include "storage/serialization.h"
+#include "db/database.hpp"
+#include "storage/serialization.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -19,10 +19,10 @@ void printUsage(std::ostream& output) {
         << "  vrdb_cli <database-directory> list\n"
         << "  vrdb_cli <database-directory> describe <table>\n"
         << "  vrdb_cli <database-directory> create <table> <column:type>...\n"
-        << "  vrdb_cli <database-directory> insert <table> <value>...\n"
+        << "  vrdb_cli <database-directory> insert <table> <cell>...\n"
         << "  vrdb_cli <database-directory> select <table>\n\n"
         << "Column types: INTEGER, TEXT, VECTOR(n)\n"
-        << "Vector values: [0.1,0.2,0.3]\n";
+        << "Vector cells: [0.1,0.2,0.3]\n";
 }
 
 std::string uppercase(std::string value) {
@@ -50,28 +50,24 @@ std::size_t parseSize(const std::string& value, const std::string& description) 
     }
 }
 
-vrdb::DataType parseDataType(std::string type) {
-    type = uppercase(std::move(type));
-    if (type == "INTEGER") {
-        return vrdb::Int64Type{};
-    }
-    if (type == "TEXT") {
-        return vrdb::TextType{};
-    }
-    if (type.size() > 8 && type.rfind("VECTOR(", 0) == 0 && type.back() == ')') {
-        return vrdb::VectorType{parseSize(type.substr(7, type.size() - 8), "vector dimension")};
-    }
-    throw std::invalid_argument("unknown column type: " + type);
-}
-
 vrdb::Column parseColumn(const std::string& specification) {
     const auto separator = specification.find(':');
     if (separator == std::string::npos || separator == 0 || separator + 1 == specification.size()) {
         throw std::invalid_argument("invalid column specification: " + specification);
     }
-    return vrdb::Column(
-        specification.substr(0, separator),
-        parseDataType(specification.substr(separator + 1)));
+    const auto name = specification.substr(0, separator);
+    const auto type = uppercase(specification.substr(separator + 1));
+    if (type == "INTEGER") {
+        return vrdb::Column(name, vrdb::ColumnType::INTEGER);
+    }
+    if (type == "TEXT") {
+        return vrdb::Column(name, vrdb::ColumnType::TEXT);
+    }
+    if (type.size() > 8 && type.rfind("VECTOR(", 0) == 0 && type.back() == ')') {
+        return vrdb::Column(name, vrdb::ColumnType::VECTOR,
+                            parseSize(type.substr(7, type.size() - 8), "vector dimension"));
+    }
+    throw std::invalid_argument("unknown column type: " + type);
 }
 
 std::int64_t parseInteger(const std::string& input) {
@@ -83,19 +79,19 @@ std::int64_t parseInteger(const std::string& input) {
         }
         return static_cast<std::int64_t>(value);
     } catch (const std::exception&) {
-        throw std::invalid_argument("invalid INTEGER value: " + input);
+        throw std::invalid_argument("invalid INTEGER cell: " + input);
     }
 }
 
-vrdb::VectorValue parseVector(const std::string& input) {
+std::vector<double> parseVector(const std::string& input) {
     if (input.size() < 2 || input.front() != '[' || input.back() != ']') {
-        throw std::invalid_argument("invalid VECTOR value: " + input);
+        throw std::invalid_argument("invalid VECTOR cell: " + input);
     }
 
-    vrdb::VectorValue vector;
+    std::vector<double> vector;
     const auto payload = input.substr(1, input.size() - 2);
     if (!payload.empty() && (payload.front() == ',' || payload.back() == ',')) {
-        throw std::invalid_argument("invalid VECTOR value: " + input);
+        throw std::invalid_argument("invalid VECTOR cell: " + input);
     }
     std::size_t begin = 0;
     while (begin < payload.size()) {
@@ -103,13 +99,13 @@ vrdb::VectorValue parseVector(const std::string& input) {
         const auto part = payload.substr(begin, end == std::string::npos ? end : end - begin);
         try {
             std::size_t parsed = 0;
-            const auto value = std::stof(part, &parsed);
+            const auto value = std::stod(part, &parsed);
             if (parsed != part.size()) {
                 throw std::invalid_argument("trailing characters");
             }
             vector.push_back(value);
         } catch (const std::exception&) {
-            throw std::invalid_argument("invalid VECTOR value: " + input);
+            throw std::invalid_argument("invalid VECTOR cell: " + input);
         }
         if (end == std::string::npos) {
             break;
@@ -119,7 +115,7 @@ vrdb::VectorValue parseVector(const std::string& input) {
     return vector;
 }
 
-vrdb::Value parseValue(const std::string& input, const vrdb::Column& column) {
+vrdb::Cell parseCell(const std::string& input, const vrdb::Column& column) {
     if (vrdb::isInteger(column.type)) {
         return parseInteger(input);
     }
@@ -131,9 +127,9 @@ vrdb::Value parseValue(const std::string& input, const vrdb::Column& column) {
 
 void printSchema(const vrdb::Schema& schema) {
     for (const auto& column : schema.columns()) {
-        std::cout << column.name << ' ' << vrdb::dataTypeName(column.type);
+        std::cout << column.name << ' ' << vrdb::columnTypeName(column.type);
         if (vrdb::isVector(column.type)) {
-            std::cout << '(' << std::get<vrdb::VectorType>(column.type).dimension() << ')';
+            std::cout << '(' << column.vectorDimension << ')';
         }
         std::cout << '\n';
     }
@@ -211,17 +207,17 @@ int main(int argc, char** argv) {
             const auto& schema = database.getSchema(argv[3]);
             if (static_cast<std::size_t>(argc - 4) != schema.size()) {
                 throw std::invalid_argument(
-                    "insert expects " + std::to_string(schema.size()) + " values but received " +
+                    "insert expects " + std::to_string(schema.size()) + " cells but received " +
                     std::to_string(argc - 4));
             }
 
-            std::vector<vrdb::Value> values;
-            values.reserve(schema.size());
+            std::vector<vrdb::Cell> cells;
+            cells.reserve(schema.size());
             for (std::size_t index = 0; index < schema.size(); ++index) {
                 const auto column = static_cast<vrdb::ColumnId>(index);
-                values.push_back(parseValue(argv[static_cast<int>(index) + 4], schema.column(column)));
+                cells.push_back(parseCell(argv[static_cast<int>(index) + 4], schema.column(column)));
             }
-            database.insert(argv[3], vrdb::Row(std::move(values)));
+            database.insert(argv[3], vrdb::Row(std::move(cells)));
             std::cout << "Inserted 1 row into " << argv[3] << '\n';
             return 0;
         }

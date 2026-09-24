@@ -1,18 +1,17 @@
 # **Milestone 1 Design**
 
-> **Implementation update:** This document originated before the schema branch
-> and mainline catalog work were combined. The current implementation uses
-> `DataType = variant<Int64Type, TextType, VectorType>`, `ColumnId`/`RowId`,
-> schema-owned row validation, and the CSV directory format documented in
-> [storage-format.md](storage-format.md). Older `ColumnType + vectorDimension`
-> and `.vrdb` examples below are historical proposal material, not the current
-> public API or file format.
+> **Implementation update:** The current implementation uses a direct `Cell` variant
+> for mixed-type rows, and `ColumnType` with validated
+> vector dimensions. It retains `ColumnId`/`RowId`, schema-owned row validation,
+> and the CSV directory format documented in [storage-format.md](storage-format.md).
+> Code snippets below are historical proposal material; see the README for the
+> current C++ API.
 
 ## **Codebase Structure**
 
 The database is organized into the following modules:
 
-| include/ ├── db/ │   ├── database.h │   └── catalog.h │ ├── types/ │   ├── value.h │   ├── column.h │   ├── schema.h │   └── row.h │ ├── storage/ │   ├── storage\_engine.h │   ├── file\_storage\_engine.h │   └── serialization.h │ ├── query/ │   ├── query.h │   ├── predicate.h │   ├── query\_result.h │   └── executor.h │ └── vector/     └── distance.h  |
+| include/ ├── db/ │   ├── database.hpp │   └── catalog.hpp │ ├── types/ │   ├── cell.hpp │   ├── column.hpp │   ├── schema.hpp │   └── row.hpp │ ├── storage/ │   ├── storage\_engine.hpp │   ├── file\_storage\_engine.hpp │   └── serialization.hpp │ ├── query/ │   ├── query.hpp │   ├── predicate.hpp │   ├── query\_result.hpp │   └── executor.hpp │ └── vector/     └── distance.hpp  |
 | :---- |
 
 | src/ ├── db/ │   ├── database.cpp │   └── catalog.cpp │ ├── types/ │   ├── schema.cpp │   └── row.cpp │ ├── storage/ │   ├── file\_storage\_engine.cpp │   └── serialization.cpp │ ├── query/ │   ├── predicate.cpp │   └── executor.cpp │ └── vector/     └── distance.cpp |
@@ -20,14 +19,14 @@ The database is organized into the following modules:
 
 # **Types**
 
-## **ColumnType / Value**
+## **ColumnType / Cell**
 
-`include/types/value.h`
+`include/types/cell.hpp`
 
-| /\*\* Describes the type declared in a schema. \*/ enum class ColumnType {     INTEGER,     TEXT,     VECTOR }; using Vector \= std::vector\<float\>; /\*\* Represents an actual value stored in a row. \*/ using Value \= std::variant\<     int64\_t,      std::string,     Vector \>; |
+| /\*\* Describes the type declared in a schema. \*/ enum class ColumnType {     INTEGER,     TEXT,     VECTOR }; using Vector \= std::vector\<float\>; /\*\* Represents an actual value stored in a row. \*/ using Cell \= std::variant\<     int64\_t,      std::string,     Vector \>; |
 | :---- |
 
-Adding a database type requires extending both `ColumnType` and `Value`.
+Adding a database type requires extending both `ColumnType` and `Cell`.
 
 **Supported Representations:**
 
@@ -39,7 +38,7 @@ Adding a database type requires extending both `ColumnType` and `Value`.
 
 **Column**
 
-`include/types/schema.h`
+`include/types/schema.hpp`
 
 | struct Column {     std::string name;     ColumnType type;     // Only populated for VECTOR columns; must be \>= 1\.     std::optional\<std::size\_t\> vectorDimension;  }; |
 | :---- |
@@ -65,7 +64,7 @@ Adding a database type requires extending both `ColumnType` and `Value`.
 
 # **Schema**
 
-`include/types/schema.h`
+`include/types/schema.hpp`
 
 | /\*\*  \* Represents the ordered column structure of a table.  \*/ class Schema { public:     // Creates a schema from an ordered list of columns.     explicit Schema(std::vector\<Column\> columns);      // Returns all columns in schema order.     const std::vector\<Column\>& columns() const;          // Returns all columns in schema order.     std::size\_t size() const;     // Returns whether a column with the given name exists.     bool hasColumn(const std::string& name) const;     // Returns the index of the named column (see below).     std::size\_t columnIndex(         const std::string& name     ) const;     // Returns the named column.     const Column& column(         const std::string& name     ) const;     // Returns the column at the given index.     const Column& column(         std::size\_t index     ) const;     // Verifies that the schema and its columns are valid (see below).     void validate() const; private:    // Columns in their defined schema order.     std::vector\<Column\> columns\_; }; |
 | :---- |
@@ -92,9 +91,9 @@ Unknown columns result in an error rather than returning an invalid index.
 
 # **Row**
 
-`include/types/row.h`
+`include/types/row.hpp`
 
-| /\*\*  \* Represents a single row of values in a table.  \*/ class Row { public:     // Creates a row from an ordered list of values.     explicit Row(std::vector\<Value\> values);     // Returns all values in the row.     const std::vector\<Value\>& values() const;     // Returns the value at the given index.     const Value& value(         std::size\_t index     ) const;     // Returns the number of values in the row.     std::size\_t size() const;     // Verifies that the row matches the given schema (see below).      void validateAgainst(         const Schema& schema     ) const; private:     // Values stored in schema order.     std::vector\<Value\> values\_; }; |
+| /\*\*  \* Represents a single row of cells in a table.  \*/ class Row { public:     // Creates a row from an ordered list of cells.     explicit Row(std::vector\<Cell\> cells);     // Returns all cells in the row.     const std::vector\<Cell\>& cells() const;     // Returns the value at the given index.     const Cell& value(         std::size\_t index     ) const;     // Returns the number of cells in the row.     std::size\_t size() const;     // Verifies that the row matches the given schema (see below).      void validateAgainst(         const Schema& schema     ) const; private:     // Cells stored in schema order.     std::vector\<Cell\> cells\_; }; |
 | :---- |
 
 **Example:** 
@@ -118,7 +117,7 @@ Unknown columns result in an error rather than returning an invalid index.
 
 # **Catalog**
 
-`include/db/catalog.h`
+`include/db/catalog.hpp`
 
 | /\*\*   \* Stores metadata describing a table.   \*/  struct TableMetadata {     std::string name;     Schema schema; }; /\*\*   \* Manages metadata for all tables in the database.   \*   \* Provides table creation, deletion, lookup, and persistent   \* loading of table schemas.   \*/  class Catalog { public:     // Creates a catalog for the database at the given path.     explicit Catalog(         std::filesystem::path databasePath     );     // Loads existing table metadata from persistent storage.     void load();     // Adds a new table and its schema to the catalog.     void createTable(         const std::string& name,         const Schema& schema     );     // Removes a table from the catalog.     void dropTable(         const std::string& name     );     // Returns whether the named table exists.     bool hasTable(        const std::string& name     ) const;     // Returns the schema for the named table.     const Schema& getSchema(         const std::string& name     ) const;     // Returns the names of all tables in the catalog.     std::vector\<std::string\> listTables() const; private:     // Path used to persist catalog metadata.     std::filesystem::path path\_;     // In-memory metadata indexed by table name.     std::unordered\_map\<         std::string,          TableMetadata     \> tables\_; }; |
 | :---- |
@@ -141,7 +140,7 @@ Database:
 
 **StorageEngine**
 
-`include/storage/storage_engine.h`
+`include/storage/storage_engine.hpp`
 
 The storage layer is responsible for persistent data, not schema validation or query execution.
 
@@ -157,20 +156,20 @@ The storage layer is responsible for persistent data, not schema validation or q
 
 # **Row Serialization**
 
-`include/storage/serialization.h`
+`include/storage/serialization.hpp`
 
 Serialization is isolated from `StorageEngine`, so that file I/O and value encoding are separate responsibilities.
 
 A malformed or schema-incompatible row is considered an error.
 
-| // Converts a database value into its persistent string representation. std::string serializeValue(     const Value& value ); // Converts a serialized value back into its expected column type. Value deserializeValue(     const std::string& encoded,     const Column& column );  // Converts a complete row into its persistent string representation. std::string serializeRow(     const Row& row ); // Reconstructs a row using its serialized data and table schema. Row deserializeRow(     const std::string& encoded,     const Schema& schema ); |
+| // Converts a database value into its persistent string representation. std::string serializeCell(     const Cell& value ); // Converts a serialized value back into its expected column type. Cell deserializeCell(     const std::string& encoded,     const Column& column );  // Converts a complete row into its persistent string representation. std::string serializeRow(     const Row& row ); // Reconstructs a row using its serialized data and table schema. Row deserializeRow(     const std::string& encoded,     const Schema& schema ); |
 | :---- |
 
 # 
 
 # **Query**
 
-`include/query/query.h`
+`include/query/query.hpp`
 
 | /\*\*  \* Represents a query to execute against a table.  \*/ struct Query {     // Name of the table being queried.     std::string table;     // Columns to return. Empty means all columns (see below).     std::vector\<std::string\> projection;     // Conditions that rows must satisfy.     std::vector\<Predicate\> predicates;     // Maximum number of rows to return.     std::optional\<std::size\_t\> limit;     // Number of matching rows to skip before returning results.     std::size\_t offset \= 0; }; |
 | :---- |
@@ -190,7 +189,7 @@ Predicates are evaluated with `AND` semantics.
 
 # **Predicate**
 
-`include/query/predicate.h`
+`include/query/predicate.hpp`
 
 ## **ComparisonOperator**
 
@@ -239,7 +238,7 @@ Execution can dispatch based on the predicate type without manually storing a pr
 
 # **QueryResult**
 
-`include/query/query_result.h`
+`include/query/query_result.hpp`
 
 | /\*\*  \* Represents the result returned from a query.  \*/ struct QueryResult {     // Schema describing the columns in the returned rows.     Schema schema;     // Rows that matched the query.     std::vector\<Row\> rows; }; |
 | :---- |
@@ -254,7 +253,7 @@ Execution can dispatch based on the predicate type without manually storing a pr
 
 # **Distance Functions**
 
-`include/vector/distance.h`
+`include/vector/distance.hpp`
 
 | float euclideanDistance(     const std::vector\<float\>& a,     const std::vector\<float\>& b ); float cosineDistance(     const std::vector\<float\>& a,     const std::vector\<float\>& b ); float distance(     const std::vector\<float\>& a,     const std::vector\<float\>& b,     DistanceMetric metric ); |
 | :---- |
@@ -269,7 +268,7 @@ Execution can dispatch based on the predicate type without manually storing a pr
 
 # **QueryExecutor**
 
-`include/query/executor.h`
+`include/query/executor.hpp`
 
 | /\*\*  \* Executes queries against rows using the provided table schema.  \*/ class QueryExecutor { public:     // Executes a query and returns the matching projected rows.     QueryResult execute(         const Query& query,         const Schema& schema,         const std::vector\<Row\>& rows     ) const; private:     // Checks whether a row satisfies a predicate.     bool evaluatePredicate(         const Predicate& predicate,         const Schema& schema,         const Row& row     ) const;     // Returns a row containing only the requested columns.     Row projectRow(         const Row& row,         const Schema& schema,         const std::vector\<std::string\>& projection     ) const;     // Creates the schema corresponding to the requested columns.     Schema projectSchema(         const Schema& schema,         const std::vector\<std::string\>& projection     ) const; }; |
 | :---- |
@@ -294,7 +293,7 @@ Execution can dispatch based on the predicate type without manually storing a pr
 
 # **Database**
 
-`include/db/database.h`
+`include/db/database.hpp`
 
 | /\*\*  \* Main interface for interacting with the database.  \*/ class Database { public:     // Opens or creates a database at the given path.     explicit Database(         const std::filesystem::path& path     );     // Creates a new table with the given schema.     void createTable(         const std::string& name,         const Schema& schema     );     // Removes a table from the database.     void dropTable(         const std::string& name     );     // Inserts a row into the specified table.     void insert(         const std::string& tableName,         const Row& row     );     // Executes a query and returns its results.     QueryResult select(         const Query& query     );     // Returns whether the named table exists.     bool hasTable(         const std::string& name     ) const;     // Returns the names of all tables in the database.     std::vector\<std::string\> listTables() const;     // Returns the schema for the specified table.     const Schema& getSchema(         const std::string& tableName     ) const;     // Returns the number of rows in the specified table.     std::size\_t rowCount(         const std::string& tableName     ) const; private:     // Stores table names and schemas.     Catalog catalog\_;     // Handles persistent table and row storage.     std::unique\_ptr\<StorageEngine\> storage\_;     // Executes queries against stored rows.     QueryExecutor executor\_; }; |
 | :---- |

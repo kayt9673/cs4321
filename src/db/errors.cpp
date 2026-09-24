@@ -1,4 +1,4 @@
-#include "db/errors.h"
+#include "db/errors.hpp"
 
 #include <utility>
 

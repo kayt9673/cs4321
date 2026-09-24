@@ -11,8 +11,8 @@ add_library(vrdb
     src/db/catalog.cpp
     src/db/errors.cpp
     src/query/predicate.cpp
-    src/types/data_type.cpp
-    src/types/value.cpp
+    src/types/cell.cpp
+    src/types/column.cpp
     src/types/schema.cpp
     src/types/row.cpp
     src/storage/serialization.cpp
@@ -38,6 +38,10 @@ add_executable(test_storage tests/test_storage.cpp)
 target_link_libraries(test_storage PRIVATE vrdb)
 add_test(NAME storage COMMAND test_storage)
 
+add_executable(test_database_ownership tests/test_database_ownership.cpp)
+target_link_libraries(test_database_ownership PRIVATE vrdb)
+add_test(NAME database_ownership COMMAND test_database_ownership)
+
 add_executable(test_predicates tests/test_predicates.cpp)
 target_link_libraries(test_predicates PRIVATE vrdb)
 add_test(NAME predicates COMMAND test_predicates)
@@ -49,6 +53,10 @@ add_test(NAME distance COMMAND test_distance)
 add_executable(test_schema tests/test_schema.cpp)
 target_link_libraries(test_schema PRIVATE vrdb)
 add_test(NAME schema COMMAND test_schema)
+
+add_executable(test_cell tests/test_cell.cpp)
+target_link_libraries(test_cell PRIVATE vrdb)
+add_test(NAME cell COMMAND test_cell)
 
 add_executable(test_row tests/test_row.cpp)
 target_link_libraries(test_row PRIVATE vrdb)

@@ -1,6 +1,6 @@
-#include "db/database.h"
-#include "query/executor.h"
-#include "query/predicate.h"
+#include "db/database.hpp"
+#include "query/executor.hpp"
+#include "query/predicate.hpp"
 
 #include <iostream>
 #include <string>
@@ -12,10 +12,10 @@ int main() {
     Database db("./data");
 
     Schema schema({
-        Column("id", Int64Type{}),
-        Column("rating", Int64Type{}),
-        Column("review", TextType{}),
-        Column("embedding", VectorType{4}),
+        Column("id", ColumnType::INTEGER),
+        Column("rating", ColumnType::INTEGER),
+        Column("review", ColumnType::TEXT),
+        Column("embedding", ColumnType::VECTOR, 4),
     });
 
     if (db.hasTable("reviews")) {
@@ -23,10 +23,10 @@ int main() {
     }
     db.createTable("reviews", schema);
     db.insert("reviews", Row({
-        int64_t{1},
+        std::int64_t{1},
         int64_t{8},
         std::string{"Example review"},
-        std::vector<float>{0.1f, 0.2f, 0.3f, 0.4f},
+        std::vector<double>{0.1, 0.2, 0.3, 0.4},
     }));
 
     Query query;
@@ -35,9 +35,9 @@ int main() {
     query.predicates.push_back(
         vectorDistance("embedding",
                        DistanceMetric::COSINE,
-                       {0.1f, 0.2f, 0.3f, 0.4f},
+                       {0.1, 0.2, 0.3, 0.4},
                        ComparisonOperator::LESS_THAN,
-                       0.01f));
+                       0.01));
 
     const auto result = db.select(query);
 

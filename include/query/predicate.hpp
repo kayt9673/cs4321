@@ -1,6 +1,6 @@
 #pragma once
 
-#include "vector/distance.h"
+#include "vector/distance.hpp"
 
 #include <cstdint>
 #include <string>
@@ -33,9 +33,9 @@ struct TextPredicate {
 struct VectorPredicate {
     std::string column;
     DistanceMetric metric;
-    std::vector<float> referenceVector;
+    std::vector<double> referenceVector;
     ComparisonOperator op;
-    float threshold;
+    double threshold;
 };
 
 using Predicate = std::variant<IntegerPredicate, TextPredicate, VectorPredicate>;
@@ -44,13 +44,13 @@ Predicate integerComparison(std::string column, ComparisonOperator op, int64_t v
 Predicate textComparison(std::string column, ComparisonOperator op, std::string value);
 Predicate vectorDistance(std::string column,
                          DistanceMetric metric,
-                         std::vector<float> referenceVector,
+                         std::vector<double> referenceVector,
                          ComparisonOperator op,
-                         float threshold);
-Predicate vectorDistanceLessThan(std::string column, std::vector<float> referenceVector, float threshold);
+                         double threshold);
+Predicate vectorDistanceLessThan(std::string column, std::vector<double> referenceVector, double threshold);
 
 bool evaluateIntegerComparison(int64_t left, ComparisonOperator op, int64_t right);
 bool evaluateTextComparison(const std::string& left, ComparisonOperator op, const std::string& right);
-bool evaluateFloatComparison(float left, ComparisonOperator op, float right);
+bool evaluateFloatComparison(double left, ComparisonOperator op, double right);
 
 } // namespace vrdb

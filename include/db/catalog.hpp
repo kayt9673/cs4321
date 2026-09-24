@@ -1,6 +1,6 @@
 #pragma once
 
-#include "types/schema.h"
+#include "types/schema.hpp"
 
 #include <filesystem>
 #include <string>

@@ -1,6 +1,6 @@
-#include "query/predicate.h"
+#include "query/predicate.hpp"
 
-#include "db/errors.h"
+#include "db/errors.hpp"
 
 #include <utility>
 
@@ -16,13 +16,13 @@ Predicate textComparison(std::string column, ComparisonOperator op, std::string 
 
 Predicate vectorDistance(std::string column,
                          DistanceMetric metric,
-                         std::vector<float> referenceVector,
+                         std::vector<double> referenceVector,
                          ComparisonOperator op,
-                         float threshold) {
+                         double threshold) {
     return VectorPredicate{std::move(column), metric, std::move(referenceVector), op, threshold};
 }
 
-Predicate vectorDistanceLessThan(std::string column, std::vector<float> referenceVector, float threshold) {
+Predicate vectorDistanceLessThan(std::string column, std::vector<double> referenceVector, double threshold) {
     return vectorDistance(
         std::move(column), DistanceMetric::EUCLIDEAN, std::move(referenceVector), ComparisonOperator::LESS_THAN, threshold);
 }
@@ -60,7 +60,7 @@ bool evaluateTextComparison(const std::string& left, ComparisonOperator op, cons
     throw QueryError("unknown comparison operator");
 }
 
-bool evaluateFloatComparison(float left, ComparisonOperator op, float right) {
+bool evaluateFloatComparison(double left, ComparisonOperator op, double right) {
     switch (op) {
     case ComparisonOperator::LESS_THAN:
         return left < right;

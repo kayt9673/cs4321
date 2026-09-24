@@ -1,6 +1,6 @@
 #pragma once
 
-#include "query/predicate.h"
+#include "query/predicate.hpp"
 
 #include <optional>
 #include <string>
