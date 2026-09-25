@@ -2,7 +2,7 @@
 
 > **Implementation update:** The current implementation uses a direct `Cell` variant
 > for mixed-type rows, and `ColumnType` with validated
-> vector dimensions. It retains `ColumnId`/`RowId`, schema-owned row validation,
+> vector dimensions. It retains `ColumnId`, schema-owned row validation,
 > and the CSV directory format documented in [storage-format.md](storage-format.md).
 > Code snippets below are historical proposal material; see the README for the
 > current C++ API.

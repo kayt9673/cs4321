@@ -35,13 +35,19 @@ if(NOT CLI_OUTPUT MATCHES "documents")
 endif()
 
 run_cli(describe documents)
-if(NOT CLI_OUTPUT MATCHES "embedding VECTOR\\(3\\)")
+if(NOT CLI_OUTPUT MATCHES "embedding +\\| VECTOR\\(3\\)")
     message(FATAL_ERROR "reopened database did not restore vector schema")
 endif()
 
 run_cli(select documents)
 if(NOT CLI_OUTPUT MATCHES "hello, CSV")
     message(FATAL_ERROR "reopened database did not restore inserted row")
+endif()
+
+run_cli(select documents --csv)
+if(NOT CLI_OUTPUT MATCHES "\"id\",\"title\",\"embedding\"" OR
+   NOT CLI_OUTPUT MATCHES "\"1\",\"hello, CSV\"")
+    message(FATAL_ERROR "CSV output does not match logical table columns")
 endif()
 
 if(NOT EXISTS "${TEST_ROOT}/tables/documents.csv")

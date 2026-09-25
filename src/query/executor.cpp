@@ -66,7 +66,9 @@ QueryResult QueryExecutor::execute(const Query& query, const Schema& schema, con
     std::vector<ColumnId> projection{};
     projection.reserve(query.projection.size());
     std::unordered_set<ColumnId> projectedColumns{};
+
     for (const auto& columnName : query.projection) {
+        // think we are doing double checks here but this is okay for now
         const auto id{requireColumn(schema, columnName)};
         if (!projectedColumns.insert(id).second) {
             throw QueryError{"duplicate projected column: " + columnName};

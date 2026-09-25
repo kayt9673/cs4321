@@ -1,49 +1,25 @@
 #include "db/database.hpp"
-#include "query/executor.hpp"
-#include "query/predicate.hpp"
+#include "storage/serialization.hpp"
 
 #include <iostream>
 #include <string>
-#include <vector>
 
-// Create sample review data and run a combined integer and vector query.
+// Query the benchmark for the first generated title and print matching IDs and titles.
 int main() {
     using namespace vrdb;
 
-    DatabaseManager db{"./data"};
-
-    Schema schema{{
-        Column{"id", ColumnType::INTEGER},
-        Column{"rating", ColumnType::INTEGER},
-        Column{"review", ColumnType::TEXT},
-        Column{"embedding", ColumnType::VECTOR, 4},
-    }};
-
-    if (db.hasTable("reviews")) {
-        db.dropTable("reviews");
-    }
-    db.createTable("reviews", schema);
-    db.insert("reviews", Row{{
-        std::int64_t{1},
-        int64_t{8},
-        std::string{"Example review"},
-        std::vector<double>{0.1, 0.2, 0.3, 0.4},
-    }});
-
+    DatabaseManager db{"data/benchmark"};
     Query query{};
-    query.table = "reviews";
-    query.predicates.push_back(integerComparison("rating", ComparisonOperator::GREATER_THAN_OR_EQUAL, 7));
+    query.table = "documents";
+    query.projection = {"id", "title"};
+
+    std::string title{"document-000000000001"};
+    title.resize(128, 'x'); // Generated titles are padded to 128 characters.
     query.predicates.push_back(
-        vectorDistance("embedding",
-                       DistanceMetric::COSINE,
-                       {0.1, 0.2, 0.3, 0.4},
-                       ComparisonOperator::LESS_THAN,
-                       0.01));
+        textComparison("title", ComparisonOperator::EQUAL, title));
 
     const auto result{db.select(query)};
-
-    std::cout << "Inserted rows persisted: " << db.rowCount("reviews") << '\n';
-    std::cout << "Rows matching demo query: " << result.rows.size() << '\n';
-
-    return 0;
+    for (const auto& row : result.rows) {
+        writeCsvRecord(std::cout, serializeRowForCsv(row));
+    }
 }

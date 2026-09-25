@@ -14,16 +14,11 @@ DatabaseManager::DatabaseManager(const std::filesystem::path& storagePath)
 }
 
 // Create a table and persist its schema and storage.
-void DatabaseManager::createTable(const std::string& name, const Schema& schema) {
-    Catalog::validateTableName(name);
-    if (catalog_.hasTable(name)) {
-        throw DatabaseError{"table already exists: " + name};
-    }
-    storage_->createTable(name, schema);
+void DatabaseManager::createTable(const std::string& name, const Schema& schema) {    
     try {
         catalog_.createTable(name, schema);
+        storage_->createTable(name, schema);
     } catch (...) {
-        storage_->dropTable(name);
         throw;
     }
 }

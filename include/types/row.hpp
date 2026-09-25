@@ -24,9 +24,5 @@ private:
     std::vector<Cell> cells_;
 };
 
-struct StoredRow {
-    RowId id;
-    Row row;
-};
 
 } // namespace vrdb

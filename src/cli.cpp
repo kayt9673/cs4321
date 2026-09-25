@@ -3,12 +3,21 @@
 
 #include <algorithm>
 #include <cctype>
+#include <clocale>
 #include <cstdint>
+#include <cstdlib>
+#include <cwchar>
 #include <iostream>
 #include <limits>
 #include <string>
 #include <utility>
 #include <vector>
+
+#if defined(_WIN32)
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
 
 namespace {
 
@@ -20,8 +29,8 @@ void printUsage(std::ostream& output) {
         << "  vrdb_cli <database-directory> list\n"
         << "  vrdb_cli <database-directory> describe <table>\n"
         << "  vrdb_cli <database-directory> create <table> <column:type>...\n"
-        << "  vrdb_cli <database-directory> insert <table> <cell>...\n"
-        << "  vrdb_cli <database-directory> select <table>\n\n"
+        << "  vrdb_cli <database-directory> insert <table> <value>...\n"
+        << "  vrdb_cli <database-directory> select <table> [--csv]\n\n"
         << "Column types: INTEGER, TEXT, VECTOR(n)\n"
         << "Vector cells: [0.1,0.2,0.3]\n";
 }
@@ -73,20 +82,6 @@ vrdb::Column parseColumn(const std::string& specification) {
     throw std::invalid_argument{"unknown column type: " + type};
 }
 
-// Parse a signed integer and reject invalid or trailing input.
-std::int64_t parseInteger(const std::string& input) {
-    try {
-        std::size_t parsed{0};
-        const auto value{std::stoll(input, &parsed)};
-        if (parsed != input.size()) {
-            throw std::invalid_argument{"trailing characters"};
-        }
-        return static_cast<std::int64_t>(value);
-    } catch (const std::exception&) {
-        throw std::invalid_argument{"invalid INTEGER cell: " + input};
-    }
-}
-
 // Parse a bracketed list of floating-point coordinates.
 std::vector<double> parseVector(const std::string& input) {
     if (input.size() < 2 || input.front() != '[' || input.back() != ']') {
@@ -123,7 +118,16 @@ std::vector<double> parseVector(const std::string& input) {
 // Parse a CLI cell according to its column type.
 vrdb::Cell parseCell(const std::string& input, const vrdb::Column& column) {
     if (vrdb::isInteger(column.type)) {
-        return parseInteger(input);
+        try {
+            std::size_t parsed{0};
+            const auto value{std::stoll(input, &parsed)};
+            if (parsed != input.size()) {
+                throw std::invalid_argument{"trailing characters"};
+            }
+            return static_cast<std::int64_t>(value);
+        } catch (const std::exception&) {
+            throw std::invalid_argument{"invalid INTEGER cell: " + input};
+        }
     }
     if (vrdb::isText(column.type)) {
         return input;
@@ -131,27 +135,158 @@ vrdb::Cell parseCell(const std::string& input, const vrdb::Column& column) {
     return parseVector(input);
 }
 
-// Print column names, types, and vector dimensions.
-void printSchema(const vrdb::Schema& schema) {
-    for (const auto& column : schema.columns()) {
-        std::cout << column.name << ' ' << vrdb::columnTypeName(column.type);
-        if (vrdb::isVector(column.type)) {
-            std::cout << '(' << column.vectorDimension << ')';
-        }
-        std::cout << '\n';
+// Parse all CLI row cells in schema order and check their count.
+vrdb::Row parseRowValues(const vrdb::Schema& schema, int argc, char** argv, int firstValue,
+                        const std::string& command) {
+    if (static_cast<std::size_t>(argc - firstValue) != schema.size()) {
+        throw std::invalid_argument{
+            command + " expects " + std::to_string(schema.size()) + " values but received " +
+            std::to_string(argc - firstValue)};
     }
+    std::vector<vrdb::Cell> values{};
+    values.reserve(schema.size());
+    for (std::size_t index{0}; index < schema.size(); ++index) {
+        values.push_back(parseCell(argv[firstValue + static_cast<int>(index)],
+                                    schema.column(static_cast<vrdb::ColumnId>(index))));
+    }
+    return vrdb::Row{std::move(values)};
 }
 
-// Print the result header and rows as CSV.
-void printQueryResult(const vrdb::QueryResult& result) {
+// Enable color only for supported terminals unless disabled by the environment.
+bool useColor(bool errorOutput = false) {
+    if (std::getenv("NO_COLOR") || (std::getenv("TERM") && std::string(std::getenv("TERM")) == "dumb")) {
+        return false;
+    }
+#if defined(_WIN32)
+    return _isatty(_fileno(errorOutput ? stderr : stdout)) != 0;
+#else
+    return isatty(errorOutput ? STDERR_FILENO : STDOUT_FILENO) != 0;
+#endif
+}
+
+// Escape control characters so a cell stays on one display line.
+std::string escapeCell(const std::string& value) {
+    std::string output{};
+    constexpr char digits[] = "0123456789abcdef";
+    for (unsigned char character : value) {
+        if (character == '\n') output += "\\n";
+        else if (character == '\r') output += "\\r";
+        else if (character == '\t') output += "\\t";
+        else if (character < 0x20 || character == 0x7f) {
+            output += "\\x";
+            output += digits[character >> 4];
+            output += digits[character & 0x0f];
+        }
+        else output += static_cast<char>(character);
+    }
+    return output;
+}
+
+// Count terminal display columns, accounting for multibyte characters.
+std::size_t displayWidth(const std::string& value) {
+#if defined(_WIN32)
+    return value.size();
+#else
+    std::mbstate_t state{};
+    const char* cursor{value.data()};
+    std::size_t remaining{value.size()};
+    std::size_t width{0};
+    while (remaining > 0) {
+        wchar_t character{0};
+        const auto consumed{std::mbrtowc(&character, cursor, remaining, &state)};
+        if (consumed == static_cast<std::size_t>(-1) || consumed == static_cast<std::size_t>(-2)) {
+            ++cursor;
+            --remaining;
+            ++width;
+            state = std::mbstate_t{};
+            continue;
+        }
+        const auto bytes{consumed == 0 ? 1 : consumed};
+        const auto cells{::wcwidth(character)};
+        width += cells < 0 ? 1 : static_cast<std::size_t>(cells);
+        cursor += bytes;
+        remaining -= bytes;
+    }
+    return width;
+#endif
+}
+
+// Render escaped cells in an aligned table with an optional colored header.
+void printTable(const std::vector<std::string>& header, const std::vector<std::vector<std::string>>& rows) {
+    std::vector<std::size_t> widths{};
+    widths.reserve(header.size());
+    for (const auto& name : header) widths.push_back(displayWidth(escapeCell(name)));
+    for (const auto& row : rows) {
+        for (std::size_t index{0}; index < row.size(); ++index) {
+            widths[index] = std::max(widths[index], displayWidth(escapeCell(row[index])));
+        }
+    }
+    const auto border = [&]() {
+        std::cout << '+';
+        for (const auto width : widths) std::cout << std::string(width + 2, '-') << '+';
+        std::cout << '\n';
+    };
+    const bool color{useColor()};
+    const auto line = [&](const std::vector<std::string>& cells, bool heading) {
+        std::cout << '|';
+        for (std::size_t index{0}; index < cells.size(); ++index) {
+            const auto display{escapeCell(cells[index])};
+            std::cout << ' ';
+            const bool styled{color && (heading || index == 0)};
+            if (color && heading) std::cout << "\x1b[1;36m";
+            else if (color && index == 0) std::cout << "\x1b[33m";
+            std::cout << display;
+            if (styled) std::cout << "\x1b[0m";
+            std::cout << std::string(widths[index] - displayWidth(display) + 1, ' ') << '|';
+        }
+        std::cout << '\n';
+    };
+    border();
+    line(header, true);
+    border();
+    for (const auto& row : rows) line(row, false);
+    border();
+    std::cout << rows.size() << (rows.size() == 1 ? " row" : " rows") << '\n';
+}
+
+// Print a success message with optional terminal color.
+void printSuccess(const std::string& message) {
+    if (useColor()) std::cout << "\x1b[1;32m";
+    std::cout << message;
+    if (useColor()) std::cout << "\x1b[0m";
+    std::cout << '\n';
+}
+
+// Display column names, types, and vector dimensions as a table.
+void printSchema(const vrdb::Schema& schema) {
+    std::vector<std::vector<std::string>> rows{};
+    for (const auto& column : schema.columns()) {
+        std::string type{vrdb::columnTypeName(column.type)};
+        if (vrdb::isVector(column.type)) {
+            type += '(' + std::to_string(column.vectorDimension) + ')';
+        }
+        rows.push_back({column.name, type});
+    }
+    printTable({"column", "type"}, rows);
+}
+
+// Print result cells as CSV or an aligned table.
+void printQueryResult(const vrdb::QueryResult& result, bool csv) {
     std::vector<std::string> header{};
     header.reserve(result.schema.size());
     for (const auto& column : result.schema.columns()) {
         header.push_back(column.name);
     }
-    vrdb::writeCsvRecord(std::cout, header);
+    std::vector<std::vector<std::string>> rows{};
+    rows.reserve(result.rows.size());
     for (const auto& row : result.rows) {
-        vrdb::writeCsvRecord(std::cout, vrdb::serializeRowForCsv(row));
+        rows.push_back(vrdb::serializeRowForCsv(row));
+    }
+    if (csv) {
+        vrdb::writeCsvRecord(std::cout, header);
+        for (const auto& row : rows) vrdb::writeCsvRecord(std::cout, row);
+    } else {
+        printTable(header, rows);
     }
 }
 
@@ -159,6 +294,7 @@ void printQueryResult(const vrdb::QueryResult& result) {
 
 // Parse CLI arguments, execute one database command, and report errors.
 int main(int argc, char** argv) {
+    std::setlocale(LC_CTYPE, "");
     if (argc < 3) {
         printUsage(std::cerr);
         return 2;
@@ -173,7 +309,7 @@ int main(int argc, char** argv) {
             if (argc != 3) {
                 throw std::invalid_argument{"init does not accept additional arguments"};
             }
-            std::cout << "Initialized database at " << databasePath << '\n';
+            printSuccess("Initialized database at " + databasePath);
             return 0;
         }
 
@@ -181,9 +317,9 @@ int main(int argc, char** argv) {
             if (argc != 3) {
                 throw std::invalid_argument{"list does not accept additional arguments"};
             }
-            for (const auto& tableName : database.listTables()) {
-                std::cout << tableName << '\n';
-            }
+            std::vector<std::vector<std::string>> rows{};
+            for (const auto& tableName : database.listTables()) rows.push_back({tableName});
+            printTable({"table"}, rows);
             return 0;
         }
 
@@ -205,7 +341,7 @@ int main(int argc, char** argv) {
                 columns.push_back(parseColumn(argv[index]));
             }
             database.createTable(argv[3], vrdb::Schema{std::move(columns)});
-            std::cout << "Created table " << argv[3] << '\n';
+            printSuccess("Created table " + std::string(argv[3]));
             return 0;
         }
 
@@ -213,37 +349,28 @@ int main(int argc, char** argv) {
             if (argc < 4) {
                 throw std::invalid_argument{"insert requires a table name"};
             }
-            const auto& schema{database.getSchema(argv[3])};
-            if (static_cast<std::size_t>(argc - 4) != schema.size()) {
-                throw std::invalid_argument{
-                    "insert expects " + std::to_string(schema.size()) + " cells but received " +
-                    std::to_string(argc - 4)};
-            }
-
-            std::vector<vrdb::Cell> cells{};
-            cells.reserve(schema.size());
-            for (std::size_t index{0}; index < schema.size(); ++index) {
-                const auto column{static_cast<vrdb::ColumnId>(index)};
-                cells.push_back(parseCell(argv[static_cast<int>(index) + 4], schema.column(column)));
-            }
-            database.insert(argv[3], vrdb::Row{std::move(cells)});
-            std::cout << "Inserted 1 row into " << argv[3] << '\n';
+            const auto& schema = database.getSchema(argv[3]);
+            database.insert(argv[3], parseRowValues(schema, argc, argv, 4, "insert"));
+            printSuccess("Inserted 1 row into " + std::string{argv[3]});
             return 0;
         }
 
         if (command == "select") {
-            if (argc != 4) {
-                throw std::invalid_argument{"select requires exactly one table name"};
+            if (argc != 4 && !(argc == 5 && std::string(argv[4]) == "--csv")) {
+                throw std::invalid_argument{"select requires a table name and optional --csv"};
             }
             vrdb::Query query{};
             query.table = argv[3];
-            printQueryResult(database.select(query));
+            printQueryResult(database.select(query), argc == 5);
             return 0;
         }
 
         throw std::invalid_argument{"unknown command: " + command};
     } catch (const std::exception& error) {
-        std::cerr << "Error: " << error.what() << '\n';
+        if (useColor(true)) std::cerr << "\x1b[1;31m";
+        std::cerr << "Error: " << error.what();
+        if (useColor(true)) std::cerr << "\x1b[0m";
+        std::cerr << '\n';
         return 1;
     }
 }

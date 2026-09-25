@@ -25,7 +25,7 @@ void expectSchemaError(Function&& function, const std::string& expectedMessagePa
 
 } // namespace
 
-// Test row validation, integer bounds, and stored-row identities.
+// Test row validation and integer bounds.
 int main() {
     using namespace vrdb;
 
@@ -132,12 +132,6 @@ int main() {
         std::numeric_limits<std::int64_t>::min(),
         std::numeric_limits<std::int64_t>::max(),
     }});
-
-    const Row identicalCells{{std::int64_t{7}, std::string{"same"}, std::vector<double>{0.0, 0.0, 0.0}}};
-    const StoredRow first{RowId{100}, identicalCells};
-    const StoredRow second{RowId{101}, identicalCells};
-    assert(first.id != second.id);
-    assert(first.row.cells() == second.row.cells());
 
     return 0;
 }

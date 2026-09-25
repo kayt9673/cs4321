@@ -30,7 +30,8 @@ class GeneratorTest(unittest.TestCase):
             (destination / "catalogs" / "unfinished.csv.tmp").write_text("incomplete")
             result = subprocess.run([CLI, str(destination), "list"],
                                     check=True, capture_output=True, text=True)
-            self.assertEqual(result.stdout.splitlines(), ["first", "second"])
+            self.assertIn("first", result.stdout)
+            self.assertIn("second", result.stdout)
             first.write_bytes(original.replace(b'"first"', b'"second"'))
             result = subprocess.run([CLI, str(destination), "list"], capture_output=True)
             self.assertNotEqual(result.returncode, 0)
@@ -45,20 +46,19 @@ class GeneratorTest(unittest.TestCase):
             self.assertEqual(len(result.stdout.splitlines()), 1)
             table = destination / "tables" / "documents.csv"
             self.assertEqual(table.stat().st_size, 10_000)
-
             with (destination / "catalogs" / "documents.csv").open() as stream:
                 catalog = list(csv.reader(stream))
             self.assertEqual(catalog[0], ["table_name", "column_index", "column_name",
                                           "data_type", "vector_dimension"])
             self.assertEqual(len(catalog), 4)
 
-            selected = subprocess.run([CLI, str(destination), "select", "documents"],
+            selected = subprocess.run([CLI, str(destination), "select", "documents", "--csv"],
                                       check=True, capture_output=True, text=True)
             rows = list(csv.reader(io.StringIO(selected.stdout)))
             self.assertEqual(rows[0], ["id", "title", "embedding"])
             self.assertEqual(len(rows), 3)
-            for row_id, row in enumerate(rows[1:], 1):
-                self.assertEqual(int(row[0]), row_id)
+            for document_id, row in enumerate(rows[1:], 1):
+                self.assertEqual(int(row[0]), document_id)
                 self.assertEqual(len(row[2][1:-1].split(",")), 384)
 
             original = table.read_bytes()

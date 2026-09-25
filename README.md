@@ -10,81 +10,41 @@ transactions, joins, or an external database dependency yet.
 
 ## Current Architecture
 
-- `Database`: top-level API for creating tables, inserting rows, and reading
-  persisted rows through `select()` and `rowCount()`.
-- `Catalog`: per-table metadata store used to reload table names and
+- `Database`: top-level API for creating tables and inserting, updating,
+  deleting, and reading persisted rows.
+- `Catalog`: persistent table metadata store used to reload table names and
   schemas when the database opens.
 - `StorageEngine`: persistence abstraction. `FileStorageEngine` stores one
   RFC 4180-style CSV file per table under the database directory's `tables/`
   subdirectory.
-- `storage/serialization`: CSV record, row-cell, vector, and data-type encoding
+- `storage/serialization`: CSV record, row-value, vector, and data-type encoding
   shared by the catalog and file storage layers.
-- `Schema`, `Column`, `Row`, and `Cell`: strongly validated logical data model.
-  Rows store `Cell` variants containing integers, strings, or 64-bit
-  floating-point vectors.
-  Columns declare a `ColumnType` and a vector dimension;
-  validation rejects dimensions on non-vector columns.
+- `Schema`, `Column`, `Row`, and `Value`: strongly validated logical data model.
+  `DataType` is a variant of `Int64Type`, `TextType`, and `VectorType`, so only
+  vector columns can carry a dimension.
 - `ColumnId` and `RowId`: stable internal identifiers. Schemas resolve names to
   `ColumnId` through a map; `StoredRow` keeps physical identity separate from
-  logical cells.
+  logical values. `QueryResult::rowIds` corresponds positionally to its rows.
 - `Predicate`, `Query`, `QueryResult`, and `QueryExecutor`: programmatic query
   representation and a sequential-scan executor with projection, offset, limit,
   integer predicates, text equality predicates, and vector-distance predicates.
 - `vector/distance`: Euclidean and cosine distance utilities with dimension
   validation.
 
-## Cell Cells
-
-```cpp
-Schema schema{{
-    Column{"id", ColumnType::INTEGER},
-    Column{"title", ColumnType::TEXT},
-    Column{"embedding", ColumnType::VECTOR, 3},
-}};
-Row row{{
-    std::int64_t{1},
-    std::string{"example"},
-    std::vector<double>{0.1, 0.2, 0.3},
-}};
-schema.validateRow(row);
-const auto& title{std::get<std::string>(row.cell(ColumnId{1}))};
-```
-
-`Cell` is `std::variant<std::int64_t, std::string, std::vector<double>>`.
-Copying a row copies its cells and payloads independently.
-`std::get<T>()` accesses a payload and throws `std::bad_variant_access` for the
-wrong type; `std::get_if<T>()` returns a pointer or null. Predicates also use a
-variant, dispatched with `std::visit`.
-Runtime column metadata remains necessary to load schemas from the CLI and disk.
-The catalog and table CSV formats are unchanged by this C++ API change.
-
-## Memory Ownership
-
-`Database` directly contains its catalog and query executor, and exclusively
-owns a heap-allocated storage engine through `std::unique_ptr`. Its members
-release their owned memory automatically when the database is destroyed.
-A database can be moved but cannot be copied. After moving a database, the
-source may be destroyed or assigned a new database before reuse.
-
-Row collections, row cells, schema columns, and vector coordinates already use
-heap-backed `std::vector` storage, and catalog entries use `std::unordered_map`.
-Local container handles and scalar temporaries can still live on the stack;
-their size does not grow with the number of rows or vector dimensions. Query
-results own their data and remain valid after the database is destroyed.
-Queries currently materialize the entire table in memory before filtering.
-
 ## Milestone 1 Functionality
 
 - Database startup creates the database directory, initializes file storage
   under `tables/`, initializes `Catalog`, and loads existing table metadata.
-- Each table has its own `catalogs/<table>.csv`; table row files alone do not
+- Table metadata is persisted in `catalog.csv`; table row files alone do not
   define recognized tables.
-- Supported column/cell types are `INTEGER` (`int64_t`), `TEXT`
-  (`std::string`), and `VECTOR(n)` (`std::vector<double>`).
+- Supported column/value types are `INTEGER` (`int64_t`), `TEXT`
+  (`std::string`), and `VECTOR(n)` (`std::vector<float>`).
 - Schemas preserve column order, require at least one column, require unique
   non-empty column names, and require vector dimensions only for vector columns.
 - Rows are validated against schemas for width, type, and vector dimension.
-- Inserts validate rows and write directly to persistent storage.
+- Inserts validate rows and return a persistent `RowId`. `update(table, id, row)`
+  replaces a whole logical row, and `erase(table, id)` removes it. Missing IDs
+  fail clearly; logical user columns named `id` do not determine `RowId`.
 - Queries are programmatic `Query` objects with table name, projection,
   predicates, optional limit, and offset.
 - Empty projection means all columns; non-empty projection returns a projected
@@ -101,21 +61,22 @@ Queries currently materialize the entire table in memory before filtering.
 
 ## Database Directory Layout
 
-Opening `Database{"./my_database"}` creates or reopens this layout:
+Opening `Database("./my_database")` creates or reopens this layout:
 
 ```text
 my_database/
-├── catalogs/
-│   ├── documents.csv
-│   └── reviews.csv
+├── catalog.csv
 └── tables/
     ├── documents.csv
+    ├── documents.nextid
     └── reviews.csv
 ```
 
-Each `catalogs/<table>.csv` stores one table’s name, column order, logical types,
-and vector dimensions. Creating or dropping a table changes only its own catalog. Each table CSV has a header row followed by logical rows. TEXT
-cells use CSV quote escaping, including embedded commas, quotes, and newlines.
+`catalog.csv` stores table names, column order, logical types, and vector
+dimensions. Each table CSV has a leading `__vrdb_row_id` physical column,
+then the logical schema columns. A small `.nextid` sidecar records the next
+internal ID so deleting the newest row cannot cause ID reuse. TEXT
+values use CSV quote escaping, including embedded commas, quotes, and newlines.
 A vector is stored in one CSV field such as `"[0.1,-0.2,0.3]"`.
 
 The current storage is row-oriented because inserts and queries operate on
@@ -142,41 +103,29 @@ cmake --build build
 ./build/vrdb_cli ./example_db list
 ./build/vrdb_cli ./example_db describe documents
 ./build/vrdb_cli ./example_db select documents
+./build/vrdb_cli ./example_db update documents 1 \
+  1 'updated title' '[0.2,0.1,0.3]'
+./build/vrdb_cli ./example_db delete documents 1
+./build/vrdb_cli ./example_db select documents --csv
 ```
 
 Every invocation reopens the database from disk, so the latter commands also
-exercise catalog and row recovery. `select` currently performs an all-row query
-and writes CSV to standard output. Rich predicates remain available through the
-C++ `Query` API; the CLI intentionally does not include a SQL parser yet.
+exercise catalog and row recovery. `insert` prints the allocated `RowId`;
+`select` displays it with the rows in a bordered table. `update` replaces all
+values in one row, in schema order, and `delete` removes one row by `RowId`.
+On a terminal, headings and status messages use ANSI colors; colors are disabled
+when output is redirected, `NO_COLOR` is set, or `TERM=dumb`. `select --csv`
+emits machine-readable CSV (including `row_id`) without table decoration.
+Rich predicates remain available through the C++ `Query` API; the CLI does
+not include a SQL parser or interactive REPL yet.
 
 The separate `vrdb_demo` executable remains as a hard-coded API example.
-
-## Generate Benchmark Data
-
-Pass the desired table size in decimal GB (1 GB = 1,000,000,000 bytes):
-
-```sh
-python3 scripts/generate_database.py 1
-python3 scripts/generate_database.py 0.5 --output data/benchmark_half_gb
-./build/vrdb_cli data/benchmark describe documents
-```
-
-The generator creates a database containing a `documents` table with integer IDs,
-text titles, and 384-dimensional vectors. The requested size is the exact size of
-`tables/documents.csv`, including its header; `catalogs/documents.csv` is additional.
-The output directory defaults to `data/benchmark`. Existing output is never
-overwritten. Embeddings repeat, so this data is intended for size and scan tests.
-Generated data under `data/` is ignored by Git. The script prints one completion
-message after writing the database.
 
 ## Test
 
 ```sh
 ctest --test-dir build --output-on-failure
 ```
-
-When Python 3 is available at CMake configuration time, the test suite also checks
-that generated data has the requested size and can be read by the C++ CLI.
 
 ## Design Docs
 

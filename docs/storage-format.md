@@ -13,7 +13,7 @@ database_directory/
     └── <table_name>.csv
 ```
 
-Constructing `Database{path}` creates the database directory and empty `catalogs/` and
+Constructing `DatabaseManager{path}` creates the database directory and empty `catalogs/` and
 `tables/` directories when they do not exist. Opening the same path later
 reloads schemas from the catalog and rows from each table CSV.
 
@@ -63,8 +63,7 @@ value types, and vector dimensions are checked against the catalog schema.
 ## Deliberate Limitations
 
 - Rows are appended directly; there is no WAL or transaction protocol.
-- `RowId` exists in the logical/physical boundary but is not allocated or
-  persisted yet.
+- Row updates and deletes are not currently supported.
 - CSV is suitable for this sequential-scan milestone, not for random access or
   high-throughput vector search.
 - The earlier experimental `.vrdb` line format is not migrated automatically.
