@@ -20,7 +20,9 @@ public:
 
     void createTable(const std::string& name, const Schema& schema);
     void dropTable(const std::string& name);
-    void insert(const std::string& tableName, const Row& row);
+    RowId insert(const std::string& tableName, const Row& row);
+    void update(const std::string& tableName, RowId id, const Row& row);
+    void erase(const std::string& tableName, RowId id);
     QueryResult select(const Query& query);
 
     bool hasTable(const std::string& name) const;

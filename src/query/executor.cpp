@@ -58,7 +58,7 @@ void validatePredicate(const Predicate& predicate, ColumnId columnId, const Sche
 
 } // namespace
 
-QueryResult QueryExecutor::execute(const Query& query, const Schema& schema, const std::vector<Row>& rows) const {
+QueryResult QueryExecutor::execute(const Query& query, const Schema& schema, const std::vector<StoredRow>& rows) const {
     std::vector<ColumnId> projection;
     projection.reserve(query.projection.size());
     std::unordered_set<ColumnId> projectedColumns;
@@ -78,13 +78,14 @@ QueryResult QueryExecutor::execute(const Query& query, const Schema& schema, con
         predicates.push_back(ResolvedPredicate{id, &predicate});
     }
 
-    QueryResult result{projectSchema(schema, projection), {}};
+    QueryResult result{projectSchema(schema, projection), {}, {}};
     if (query.limit && *query.limit == 0) {
         return result;
     }
     std::size_t skipped = 0;
 
-    for (const auto& row : rows) {
+    for (const auto& stored : rows) {
+        const auto& row = stored.row;
         bool include = true;
         for (const auto& resolved : predicates) {
             if (!evaluatePredicate(*resolved.predicate, resolved.column, row)) {
@@ -101,6 +102,7 @@ QueryResult QueryExecutor::execute(const Query& query, const Schema& schema, con
         }
 
         result.rows.push_back(projectRow(row, projection));
+        result.rowIds.push_back(stored.id);
         if (query.limit && result.rows.size() >= *query.limit) {
             break;
         }

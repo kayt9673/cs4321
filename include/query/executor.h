@@ -11,7 +11,7 @@ namespace vrdb {
 
 class QueryExecutor {
 public:
-    QueryResult execute(const Query& query, const Schema& schema, const std::vector<Row>& rows) const;
+    QueryResult execute(const Query& query, const Schema& schema, const std::vector<StoredRow>& rows) const;
 
 private:
     bool evaluatePredicate(const Predicate& predicate, ColumnId column, const Row& row) const;

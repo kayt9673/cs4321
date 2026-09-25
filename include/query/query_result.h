@@ -10,6 +10,7 @@ namespace vrdb {
 struct QueryResult {
     Schema schema;
     std::vector<Row> rows;
+    std::vector<RowId> rowIds;
 };
 
 } // namespace vrdb

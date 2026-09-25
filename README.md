@@ -10,8 +10,8 @@ transactions, joins, or an external database dependency yet.
 
 ## Current Architecture
 
-- `Database`: top-level API for creating tables, inserting rows, and reading
-  persisted rows through `select()` and `rowCount()`.
+- `Database`: top-level API for creating tables and inserting, updating,
+  deleting, and reading persisted rows.
 - `Catalog`: persistent table metadata store used to reload table names and
   schemas when the database opens.
 - `StorageEngine`: persistence abstraction. `FileStorageEngine` stores one
@@ -24,7 +24,7 @@ transactions, joins, or an external database dependency yet.
   vector columns can carry a dimension.
 - `ColumnId` and `RowId`: stable internal identifiers. Schemas resolve names to
   `ColumnId` through a map; `StoredRow` keeps physical identity separate from
-  logical values.
+  logical values. `QueryResult::rowIds` corresponds positionally to its rows.
 - `Predicate`, `Query`, `QueryResult`, and `QueryExecutor`: programmatic query
   representation and a sequential-scan executor with projection, offset, limit,
   integer predicates, text equality predicates, and vector-distance predicates.
@@ -42,7 +42,9 @@ transactions, joins, or an external database dependency yet.
 - Schemas preserve column order, require at least one column, require unique
   non-empty column names, and require vector dimensions only for vector columns.
 - Rows are validated against schemas for width, type, and vector dimension.
-- Inserts validate rows and write directly to persistent storage.
+- Inserts validate rows and return a persistent `RowId`. `update(table, id, row)`
+  replaces a whole logical row, and `erase(table, id)` removes it. Missing IDs
+  fail clearly; logical user columns named `id` do not determine `RowId`.
 - Queries are programmatic `Query` objects with table name, projection,
   predicates, optional limit, and offset.
 - Empty projection means all columns; non-empty projection returns a projected
@@ -66,11 +68,14 @@ my_database/
 ├── catalog.csv
 └── tables/
     ├── documents.csv
+    ├── documents.nextid
     └── reviews.csv
 ```
 
 `catalog.csv` stores table names, column order, logical types, and vector
-dimensions. Each table CSV has a header row followed by logical rows. TEXT
+dimensions. Each table CSV has a leading `__vrdb_row_id` physical column,
+then the logical schema columns. A small `.nextid` sidecar records the next
+internal ID so deleting the newest row cannot cause ID reuse. TEXT
 values use CSV quote escaping, including embedded commas, quotes, and newlines.
 A vector is stored in one CSV field such as `"[0.1,-0.2,0.3]"`.
 
@@ -98,12 +103,21 @@ cmake --build build
 ./build/vrdb_cli ./example_db list
 ./build/vrdb_cli ./example_db describe documents
 ./build/vrdb_cli ./example_db select documents
+./build/vrdb_cli ./example_db update documents 1 \
+  1 'updated title' '[0.2,0.1,0.3]'
+./build/vrdb_cli ./example_db delete documents 1
+./build/vrdb_cli ./example_db select documents --csv
 ```
 
 Every invocation reopens the database from disk, so the latter commands also
-exercise catalog and row recovery. `select` currently performs an all-row query
-and writes CSV to standard output. Rich predicates remain available through the
-C++ `Query` API; the CLI intentionally does not include a SQL parser yet.
+exercise catalog and row recovery. `insert` prints the allocated `RowId`;
+`select` displays it with the rows in a bordered table. `update` replaces all
+values in one row, in schema order, and `delete` removes one row by `RowId`.
+On a terminal, headings and status messages use ANSI colors; colors are disabled
+when output is redirected, `NO_COLOR` is set, or `TERM=dumb`. `select --csv`
+emits machine-readable CSV (including `row_id`) without table decoration.
+Rich predicates remain available through the C++ `Query` API; the CLI does
+not include a SQL parser or interactive REPL yet.
 
 The separate `vrdb_demo` executable remains as a hard-coded API example.
 
