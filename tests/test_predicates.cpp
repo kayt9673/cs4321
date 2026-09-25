@@ -21,9 +21,9 @@ int main() {
         Column("embedding", VectorType{2}),
     });
 
-    std::vector<Row> rows({
-        Row({int64_t{1}, int64_t{8}, std::string{"keep"}, std::vector<float>{1.0f, 0.0f}}),
-        Row({int64_t{2}, int64_t{3}, std::string{"skip"}, std::vector<float>{0.0f, 1.0f}}),
+    std::vector<StoredRow> rows({
+        StoredRow{41, Row({int64_t{1}, int64_t{8}, std::string{"keep"}, std::vector<float>{1.0f, 0.0f}})},
+        StoredRow{42, Row({int64_t{2}, int64_t{3}, std::string{"skip"}, std::vector<float>{0.0f, 1.0f}})},
     });
 
     Query query;
@@ -38,6 +38,7 @@ int main() {
     const auto result = executor.execute(query, schema, rows);
     assert(result.schema.size() == 2);
     assert(result.rows.size() == 1);
+    assert(result.rowIds == std::vector<RowId>{41});
     assert(std::get<int64_t>(result.rows[0].value(0)) == 1);
     assert(std::get<std::string>(result.rows[0].value(1)) == "keep");
 

@@ -34,10 +34,25 @@ void Database::dropTable(const std::string& name) {
     catalog_.dropTable(name);
 }
 
-void Database::insert(const std::string& tableName, const Row& row) {
+RowId Database::insert(const std::string& tableName, const Row& row) {
     const auto& schema = catalog_.getSchema(tableName);
     schema.validateRow(row);
-    storage_->appendRow(tableName, schema, row);
+    return storage_->appendRow(tableName, schema, row);
+}
+
+void Database::update(const std::string& tableName, RowId id, const Row& row) {
+    const auto& schema = catalog_.getSchema(tableName);
+    schema.validateRow(row);
+    if (!storage_->updateRow(tableName, schema, id, row)) {
+        throw DatabaseError("unknown RowId " + std::to_string(id) + " in table " + tableName);
+    }
+}
+
+void Database::erase(const std::string& tableName, RowId id) {
+    const auto& schema = catalog_.getSchema(tableName);
+    if (!storage_->deleteRow(tableName, schema, id)) {
+        throw DatabaseError("unknown RowId " + std::to_string(id) + " in table " + tableName);
+    }
 }
 
 QueryResult Database::select(const Query& query) {
