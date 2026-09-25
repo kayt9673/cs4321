@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <vector>
 
+// Test distance calculations, invalid vectors, and double precision.
 int main() {
     using namespace vrdb;
 
@@ -14,7 +15,7 @@ int main() {
     assert(std::fabs(cosineDistance({1.0, 0.0}, {1.0, 0.0}) - 0.0) < 0.0001);
     assert(std::fabs(cosineDistance({1.0, 0.0}, {0.0, 1.0}) - 1.0) < 0.0001);
 
-    bool threw = false;
+    bool threw{false};
     try {
         euclideanDistance({1.0}, {1.0, 2.0});
     } catch (const QueryError&) {

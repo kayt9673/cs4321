@@ -13,7 +13,7 @@ struct Query {
     std::vector<std::string> projection;
     std::vector<Predicate> predicates;
     std::optional<std::size_t> limit;
-    std::size_t offset = 0;
+    std::size_t offset{0};
 };
 
 } // namespace vrdb

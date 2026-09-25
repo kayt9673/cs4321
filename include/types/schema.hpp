@@ -17,17 +17,27 @@ class Row;
 
 class Schema {
 public:
+    // Validate columns and build the column-name lookup map.
     explicit Schema(std::vector<Column> columns);
 
+    // Return the schema columns in declaration order.
     const std::vector<Column>& columns() const;
+    // Return a column by ID or name, rejecting missing columns.
     const Column& column(ColumnId id) const;
+    // Return a column by ID or name, rejecting missing columns.
     const Column& column(std::string_view name) const;
+    // Return the number of columns in the schema.
     std::size_t size() const;
+    // Return whether the schema contains no columns.
     bool empty() const;
 
+    // Return whether the schema contains the given column name.
     bool hasColumn(std::string_view name) const;
+    // Resolve a column name to its ID, or return no value if absent.
     std::optional<ColumnId> columnId(std::string_view name) const;
+    // Check that a cell matches its column type and vector dimension.
     void validateCell(ColumnId column, const Cell& cell) const;
+    // Check row width and validate each cell against the schema.
     void validateRow(const Row& row) const;
 
 private:

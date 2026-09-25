@@ -2,6 +2,7 @@
 
 namespace vrdb {
 
+// Return the active cell type name, or EMPTY for a valueless variant.
 std::string_view cellTypeName(const Cell& cell) noexcept {
     if (std::holds_alternative<std::int64_t>(cell)) {
         return "INTEGER";

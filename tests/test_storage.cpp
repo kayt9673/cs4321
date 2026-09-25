@@ -6,54 +6,57 @@
 #include <string>
 #include <vector>
 
+// Test persistence, CSV escaping, and rejection of invalid rows and names.
 int main() {
     using namespace vrdb;
 
-    const auto root = std::filesystem::temp_directory_path() / "vrdb_storage_test";
+    const auto root{std::filesystem::temp_directory_path() / "vrdb_storage_test"};
     std::filesystem::remove_all(root);
 
-    Schema schema({
-        Column("id", ColumnType::INTEGER),
-        Column("review", ColumnType::TEXT),
-        Column("embedding", ColumnType::VECTOR, 3),
-    });
+    Schema schema{{
+        Column{"id", ColumnType::INTEGER},
+        Column{"review", ColumnType::TEXT},
+        Column{"embedding", ColumnType::VECTOR, 3},
+    }};
 
     {
-        Database db(root);
-        assert(std::filesystem::exists(root / "catalog.csv"));
+        DatabaseManager db{root};
+        assert(std::filesystem::is_directory(root / "catalogs"));
+        assert(!std::filesystem::exists(root / "catalog.csv"));
         assert(std::filesystem::is_directory(root / "tables"));
         db.createTable("reviews", schema);
+        assert(std::filesystem::exists(root / "catalogs" / "reviews.csv"));
         assert(std::filesystem::exists(root / "tables" / "reviews.csv"));
-        db.insert("reviews", Row({
+        db.insert("reviews", Row{{
             std::int64_t{1},
             std::string{"text with |, %, \"quotes\", and\na newline"},
             std::vector<double>{1.0, 2.0, 3.0},
-        }));
-        db.insert("reviews", Row({
+        }});
+        db.insert("reviews", Row{{
             int64_t{-2},
             std::string{},
             std::vector<double>{0.0, -2.5, 4.25},
-        }));
+        }});
 
-        bool threw = false;
+        bool threw{false};
         try {
-            db.insert("reviews", Row({int64_t{2}, std::string{"bad"}, std::vector<double>{1.0}}));
+            db.insert("reviews", Row{{int64_t{2}, std::string{"bad"}, std::vector<double>{1.0}}});
         } catch (const SchemaError&) {
             threw = true;
         }
         assert(threw);
     }
 
-    Database db(root);
+    DatabaseManager db{root};
     assert(db.hasTable("reviews"));
     assert(db.rowCount("reviews") == 2);
     assert(db.listTables() == std::vector<std::string>{"reviews"});
     assert(db.getSchema("reviews").column("embedding").vectorDimension == 3);
 
-    Query query;
+    Query query{};
     query.table = "reviews";
-    const auto result = db.select(query);
-    const auto& rows = result.rows;
+    const auto result{db.select(query)};
+    const auto& rows{result.rows};
     assert(rows.size() == 2);
     assert(std::get<int64_t>(rows[0].cell(ColumnId{0})) == 1);
     assert(std::get<std::string>(rows[0].cell(ColumnId{1})) == "text with |, %, \"quotes\", and\na newline");
@@ -61,13 +64,25 @@ int main() {
     assert(std::get<int64_t>(rows[1].cell(ColumnId{0})) == -2);
     assert(std::get<std::string>(rows[1].cell(ColumnId{1})).empty());
 
-    bool invalidNameThrew = false;
+    bool invalidNameThrew{false};
     try {
         db.createTable("../escape", schema);
     } catch (const DatabaseError&) {
         invalidNameThrew = true;
     }
     assert(invalidNameThrew);
+
+    db.createTable("other", schema);
+    db.insert("other", Row{{int64_t{1}, std::string{"kept"}, std::vector<double>{1, 2, 3}}});
+    const auto otherCatalog{root / "catalogs" / "other.csv"};
+    const auto otherModified{std::filesystem::last_write_time(otherCatalog)};
+    db.dropTable("reviews");
+    assert(!std::filesystem::exists(root / "catalogs" / "reviews.csv"));
+    assert(!std::filesystem::exists(root / "tables" / "reviews.csv"));
+    assert(std::filesystem::last_write_time(otherCatalog) == otherModified);
+    DatabaseManager reopened{root};
+    assert(reopened.listTables() == std::vector<std::string>{"other"});
+    assert(reopened.rowCount("other") == 1);
 
     std::filesystem::remove_all(root);
     return 0;

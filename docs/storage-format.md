@@ -7,32 +7,42 @@ correctness, restart recovery, and human inspection over performance.
 
 ```text
 database_directory/
-├── catalog.csv
+├── catalogs/
+│   └── <table_name>.csv
 └── tables/
     └── <table_name>.csv
 ```
 
-Constructing `Database(path)` creates the directory, an empty `catalog.csv`, and
-the `tables/` directory when they do not exist. Opening the same path later
+Constructing `Database{path}` creates the database directory and empty `catalogs/` and
+`tables/` directories when they do not exist. Opening the same path later
 reloads schemas from the catalog and rows from each table CSV.
 
 Table names are case-sensitive identifiers. They contain only letters, digits,
 and underscores, and the first character must be a letter or underscore. This
 keeps table names safe to use as file names.
 
-## Catalog
+## Table Catalogs
 
-`catalog.csv` has these columns:
+Each table has its own `catalogs/<table_name>.csv` with these columns:
 
 ```text
-format_version,table_name,column_index,column_name,data_type,vector_dimension
+table_name,column_index,column_name,data_type,vector_dimension
 ```
 
-The current `format_version` is `1`. There is one record per logical column.
+There is one record per logical column of that table. Every `table_name` field
+must match the catalog filename. Startup discovers tables from these catalogs;
+a data file by itself does not register a table.
 `column_index` preserves declaration order. `vector_dimension` is empty for
 INTEGER and TEXT and is a positive
-integer for VECTOR. The catalog is written to a temporary file and renamed into
-place so a partially written catalog is not exposed on successful replacement.
+integer for VECTOR. Only the affected table’s catalog is written or removed.
+A write opens the table’s catalog directly with truncation and replaces its
+contents. No temporary catalog is created. An interrupted or failed write can
+leave an incomplete catalog. Catalog and data updates are not transactional.
+
+Databases using the previous shared root catalog must be migrated before opening:
+split its records by table name into `catalogs/<table_name>.csv`, keeping the same
+header, then archive the original root file outside the active catalog path.
+Table data files do not need to change.
 
 ## Table Files
 

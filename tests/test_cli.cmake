@@ -4,6 +4,7 @@ endif()
 
 file(REMOVE_RECURSE "${TEST_ROOT}")
 
+# Run a CLI command, fail on errors, and expose its output to the caller.
 function(run_cli)
     execute_process(
         COMMAND "${CLI}" "${TEST_ROOT}" ${ARGN}
@@ -18,11 +19,15 @@ function(run_cli)
 endfunction()
 
 run_cli(init)
-if(NOT EXISTS "${TEST_ROOT}/catalog.csv")
-    message(FATAL_ERROR "init did not create catalog.csv")
+if(NOT IS_DIRECTORY "${TEST_ROOT}/catalogs")
+    message(FATAL_ERROR "init did not create catalogs directory")
 endif()
 
 run_cli(create documents id:INTEGER title:TEXT "embedding:VECTOR(3)")
+if(NOT EXISTS "${TEST_ROOT}/catalogs/documents.csv")
+    message(FATAL_ERROR "create did not write the table catalog")
+endif()
+
 run_cli(insert documents 1 "hello, CSV" "[0.1,-0.2,0.3]")
 run_cli(list)
 if(NOT CLI_OUTPUT MATCHES "documents")

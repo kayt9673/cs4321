@@ -12,7 +12,7 @@ transactions, joins, or an external database dependency yet.
 
 - `Database`: top-level API for creating tables, inserting rows, and reading
   persisted rows through `select()` and `rowCount()`.
-- `Catalog`: persistent table metadata store used to reload table names and
+- `Catalog`: per-table metadata store used to reload table names and
   schemas when the database opens.
 - `StorageEngine`: persistence abstraction. `FileStorageEngine` stores one
   RFC 4180-style CSV file per table under the database directory's `tables/`
@@ -36,18 +36,18 @@ transactions, joins, or an external database dependency yet.
 ## Cell Cells
 
 ```cpp
-Schema schema({
-    Column("id", ColumnType::INTEGER),
-    Column("title", ColumnType::TEXT),
-    Column("embedding", ColumnType::VECTOR, 3),
-});
-Row row({
+Schema schema{{
+    Column{"id", ColumnType::INTEGER},
+    Column{"title", ColumnType::TEXT},
+    Column{"embedding", ColumnType::VECTOR, 3},
+}};
+Row row{{
     std::int64_t{1},
     std::string{"example"},
     std::vector<double>{0.1, 0.2, 0.3},
-});
+}};
 schema.validateRow(row);
-const auto& title = std::get<std::string>(row.cell(ColumnId{1}));
+const auto& title{std::get<std::string>(row.cell(ColumnId{1}))};
 ```
 
 `Cell` is `std::variant<std::int64_t, std::string, std::vector<double>>`.
@@ -77,7 +77,7 @@ Queries currently materialize the entire table in memory before filtering.
 
 - Database startup creates the database directory, initializes file storage
   under `tables/`, initializes `Catalog`, and loads existing table metadata.
-- Table metadata is persisted in `catalog.csv`; table row files alone do not
+- Each table has its own `catalogs/<table>.csv`; table row files alone do not
   define recognized tables.
 - Supported column/cell types are `INTEGER` (`int64_t`), `TEXT`
   (`std::string`), and `VECTOR(n)` (`std::vector<double>`).
@@ -101,18 +101,20 @@ Queries currently materialize the entire table in memory before filtering.
 
 ## Database Directory Layout
 
-Opening `Database("./my_database")` creates or reopens this layout:
+Opening `Database{"./my_database"}` creates or reopens this layout:
 
 ```text
 my_database/
-├── catalog.csv
+├── catalogs/
+│   ├── documents.csv
+│   └── reviews.csv
 └── tables/
     ├── documents.csv
     └── reviews.csv
 ```
 
-`catalog.csv` stores table names, column order, logical types, and vector
-dimensions. Each table CSV has a header row followed by logical rows. TEXT
+Each `catalogs/<table>.csv` stores one table’s name, column order, logical types,
+and vector dimensions. Creating or dropping a table changes only its own catalog. Each table CSV has a header row followed by logical rows. TEXT
 cells use CSV quote escaping, including embedded commas, quotes, and newlines.
 A vector is stored in one CSV field such as `"[0.1,-0.2,0.3]"`.
 
@@ -149,11 +151,32 @@ C++ `Query` API; the CLI intentionally does not include a SQL parser yet.
 
 The separate `vrdb_demo` executable remains as a hard-coded API example.
 
+## Generate Benchmark Data
+
+Pass the desired table size in decimal GB (1 GB = 1,000,000,000 bytes):
+
+```sh
+python3 scripts/generate_database.py 1
+python3 scripts/generate_database.py 0.5 --output data/benchmark_half_gb
+./build/vrdb_cli data/benchmark describe documents
+```
+
+The generator creates a database containing a `documents` table with integer IDs,
+text titles, and 384-dimensional vectors. The requested size is the exact size of
+`tables/documents.csv`, including its header; `catalogs/documents.csv` is additional.
+The output directory defaults to `data/benchmark`. Existing output is never
+overwritten. Embeddings repeat, so this data is intended for size and scan tests.
+Generated data under `data/` is ignored by Git. The script prints one completion
+message after writing the database.
+
 ## Test
 
 ```sh
 ctest --test-dir build --output-on-failure
 ```
+
+When Python 3 is available at CMake configuration time, the test suite also checks
+that generated data has the requested size and can be read by the C++ CLI.
 
 ## Design Docs
 

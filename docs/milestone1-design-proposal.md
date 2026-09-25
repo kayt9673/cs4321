@@ -71,7 +71,7 @@ Adding a database type requires extending both `ColumnType` and `Cell`.
 
 **Example:** Initializing a `Schema`
 
-| Schema({     {"id", ColumnType::INTEGER, std::nullopt},     {"title", ColumnType::TEXT, std::nullopt},     {"embedding", ColumnType::VECTOR, 384} }); |
+| Schema{{     {"id", ColumnType::INTEGER, std::nullopt},     {"title", ColumnType::TEXT, std::nullopt},     {"embedding", ColumnType::VECTOR, 384} }}; |
 | :---- |
 
 **Additional Specifications:** 
@@ -300,7 +300,7 @@ Execution can dispatch based on the predicate type without manually storing a pr
 
 **Example:** Using `Database`
 
-| // Open or create the database at the given directory. Database db("./my\_database"); // Create a table with integer, text, and vector columns. db.createTable(     "documents",     Schema({         {"id", ColumnType::INTEGER},         {"text", ColumnType::TEXT},         {"embedding", ColumnType::VECTOR, 384}     }) ); // Insert a row that matches the \`documents\` schema. db.insert(     "documents",     Row({         int64\_t{1},         std::string{"vector databases"},         embedding     }) ); // Create a query against the \`documents\` table. Query query; query.table \= "documents"; // Only return rows where id \> 0 AND // cosine distance from the reference vector is \< 0.3. query.predicates \= {     IntegerPredicate{         "id",         ComparisonOperator::GREATER\_THAN,         0     },     VectorPredicate{         "embedding",         DistanceMetric::COSINE,         reference,         ComparisonOperator::LESS\_THAN,         0.3f     } }; // Execute the query and store the matching rows. QueryResult result \= db.select(query); |
+| // Open or create the database at the given directory. Database db{"./my\_database"}; // Create a table with integer, text, and vector columns. db.createTable(     "documents",     Schema{{         {"id", ColumnType::INTEGER},         {"text", ColumnType::TEXT},         {"embedding", ColumnType::VECTOR, 384}     }} ); // Insert a row that matches the \`documents\` schema. db.insert(     "documents",     Row{{         int64\_t{1},         std::string{"vector databases"},         embedding     }} ); // Create a query against the \`documents\` table. Query query{}; query.table \= "documents"; // Only return rows where id \> 0 AND // cosine distance from the reference vector is \< 0.3. query.predicates \= {     IntegerPredicate{         "id",         ComparisonOperator::GREATER\_THAN,         0     },     VectorPredicate{         "embedding",         DistanceMetric::COSINE,         reference,         ComparisonOperator::LESS\_THAN,         0.3f     } }; // Execute the query and store the matching rows. QueryResult result{db.select(query)}; |
 | :---- |
 
 # 
@@ -309,7 +309,7 @@ Execution can dispatch based on the predicate type without manually storing a pr
 
 Creating the `Database` instance below performs the following initialization steps:
 
-| Database db("./my\_database"); |
+| Database db{"./my\_database"}; |
 | :---- |
 
 1) **Verify the database directory:** Create `./my_database` if it does not already exist.  

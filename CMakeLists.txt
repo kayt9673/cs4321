@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 
 project(vector_relational_db VERSION 0.1.0 LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -33,6 +33,16 @@ add_executable(vrdb_cli src/cli.cpp)
 target_link_libraries(vrdb_cli PRIVATE vrdb)
 
 enable_testing()
+
+find_package(Python3 QUIET COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+    add_test(
+        NAME generator
+        COMMAND ${Python3_EXECUTABLE}
+            ${PROJECT_SOURCE_DIR}/tests/test_generate_database.py
+            $<TARGET_FILE:vrdb_cli>
+    )
+endif()
 
 add_executable(test_storage tests/test_storage.cpp)
 target_link_libraries(test_storage PRIVATE vrdb)

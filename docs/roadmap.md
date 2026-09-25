@@ -400,7 +400,7 @@ Item **7** and item **132** are the same decision made twice, eleven phases apar
 
 ### Defects addressed from the original tree
 
-- **Catalog-backed startup is now present.** `Database` loads table names and schemas from `catalog.csv`, and row data lives in one CSV file per table under the database directory's `tables/` subdirectory.
+- **Catalog-backed startup is now present.** `Database` loads table names and schemas from per-table `catalogs/<table>.csv` files, and row data lives in one CSV file per table under the database directory's `tables/` subdirectory.
 - **A minimal CLI is now present.** `vrdb_cli` initializes or reopens a database, creates tables, inserts typed rows, lists and describes tables, and prints full-table scans as CSV. SQL parsing remains deferred.
 - **Queries now read persisted rows through `Database::select()`.** The executor takes a schema and row set, returning `QueryResult` with projection support instead of reading a separate in-memory `Table`.
 

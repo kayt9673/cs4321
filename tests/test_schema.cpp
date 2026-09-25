@@ -8,30 +8,32 @@
 
 namespace {
 
+// Check that an operation throws SchemaError containing the expected text.
 template <typename Function>
 void expectSchemaError(Function&& function, const std::string& expectedMessagePart) {
-    bool threw = false;
+    bool threw{false};
     try {
         std::forward<Function>(function)();
     } catch (const vrdb::SchemaError& error) {
         threw = true;
-        assert(std::string(error.what()).find(expectedMessagePart) != std::string::npos);
+        assert(std::string{error.what()}.find(expectedMessagePart) != std::string::npos);
     }
     assert(threw);
 }
 
 } // namespace
 
+// Test schema lookup and rejection of invalid column definitions.
 int main() {
     using namespace vrdb;
 
-    const Schema schema({
-        Column("year", ColumnType::INTEGER),
-        Column("review", ColumnType::TEXT),
-        Column("small_embedding", ColumnType::VECTOR, 1),
-        Column("embedding", ColumnType::VECTOR, 384),
-        Column("large_embedding", ColumnType::VECTOR, 768),
-    });
+    const Schema schema{{
+        Column{"year", ColumnType::INTEGER},
+        Column{"review", ColumnType::TEXT},
+        Column{"small_embedding", ColumnType::VECTOR, 1},
+        Column{"embedding", ColumnType::VECTOR, 384},
+        Column{"large_embedding", ColumnType::VECTOR, 768},
+    }};
 
     assert(schema.size() == 5);
     assert(!schema.empty());
@@ -49,27 +51,27 @@ int main() {
     assert(schema.column(ColumnId{2}).name == "small_embedding");
 
     expectSchemaError(
-        [] { static_cast<void>(Column("embedding", ColumnType::VECTOR, 0)); },
+        [] { static_cast<void>(Column{"embedding", ColumnType::VECTOR, 0}); },
         "vector dimension must be greater than zero");
     expectSchemaError(
-        [] { static_cast<void>(Schema(std::vector<Column>{})); },
+        [] { static_cast<void>(Schema{std::vector<Column>{}}); },
         "schema must contain at least one column");
     expectSchemaError(
         [] {
-            static_cast<void>(Schema({
-                Column("embedding", ColumnType::VECTOR, 384),
-                Column("embedding", ColumnType::TEXT),
-            }));
+            static_cast<void>(Schema{{
+                Column{"embedding", ColumnType::VECTOR, 384},
+                Column{"embedding", ColumnType::TEXT},
+            }});
         },
         "duplicate column name: embedding");
     expectSchemaError(
-        [] { static_cast<void>(Column("", ColumnType::INTEGER)); },
+        [] { static_cast<void>(Column{"", ColumnType::INTEGER}); },
         "column name cannot be empty");
 
-    const Schema caseSensitiveSchema({
-        Column("Embedding", ColumnType::VECTOR, 1),
-        Column("embedding", ColumnType::VECTOR, 1),
-    });
+    const Schema caseSensitiveSchema{{
+        Column{"Embedding", ColumnType::VECTOR, 1},
+        Column{"embedding", ColumnType::VECTOR, 1},
+    }};
     assert(caseSensitiveSchema.columnId("Embedding") == ColumnId{0});
     assert(caseSensitiveSchema.columnId("embedding") == ColumnId{1});
     assert(!caseSensitiveSchema.columnId("EMBEDDING"));
