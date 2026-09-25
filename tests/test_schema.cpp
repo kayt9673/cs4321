@@ -37,18 +37,18 @@ int main() {
 
     assert(schema.size() == 5);
     assert(!schema.empty());
-    assert(isInteger(schema.column(ColumnId{0}).type));
-    assert(isText(schema.column(ColumnId{1}).type));
-    assert(isVector(schema.column(ColumnId{2}).type));
-    assert(schema.column(ColumnId{2}).vectorDimension == 1);
-    assert(schema.column(ColumnId{3}).vectorDimension == 384);
-    assert(schema.column(ColumnId{4}).vectorDimension == 768);
+    assert(isInteger(schema.column(std::size_t{0}).type));
+    assert(isText(schema.column(std::size_t{1}).type));
+    assert(isVector(schema.column(std::size_t{2}).type));
+    assert(schema.column(std::size_t{2}).vectorDimension == 1);
+    assert(schema.column(std::size_t{3}).vectorDimension == 384);
+    assert(schema.column(std::size_t{4}).vectorDimension == 768);
 
-    assert(schema.columnId("year") == ColumnId{0});
-    assert(schema.columnId("embedding") == ColumnId{3});
+    assert(schema.columnId("year") == std::size_t{0});
+    assert(schema.columnId("embedding") == std::size_t{3});
     assert(!schema.columnId("missing"));
-    assert(schema.column(ColumnId{0}).name == "year");
-    assert(schema.column(ColumnId{2}).name == "small_embedding");
+    assert(schema.column(std::size_t{0}).name == "year");
+    assert(schema.column(std::size_t{2}).name == "small_embedding");
 
     expectSchemaError(
         [] { static_cast<void>(Column{"embedding", ColumnType::VECTOR, 0}); },
@@ -72,13 +72,13 @@ int main() {
         Column{"Embedding", ColumnType::VECTOR, 1},
         Column{"embedding", ColumnType::VECTOR, 1},
     }};
-    assert(caseSensitiveSchema.columnId("Embedding") == ColumnId{0});
-    assert(caseSensitiveSchema.columnId("embedding") == ColumnId{1});
+    assert(caseSensitiveSchema.columnId("Embedding") == std::size_t{0});
+    assert(caseSensitiveSchema.columnId("embedding") == std::size_t{1});
     assert(!caseSensitiveSchema.columnId("EMBEDDING"));
 
     expectSchemaError(
-        [&schema] { static_cast<void>(schema.column(ColumnId{5})); },
-        "ColumnId 5 is out of range");
+        [&schema] { static_cast<void>(schema.column(std::size_t{5})); },
+        "column index 5 is out of range");
 
     return 0;
 }

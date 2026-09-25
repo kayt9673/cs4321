@@ -16,12 +16,11 @@ const std::vector<Cell>& Row::cells() const {
 }
 
 // Return a cell by column ID, rejecting out-of-range IDs.
-const Cell& Row::cell(ColumnId id) const {
-    const auto index{static_cast<std::size_t>(id)};
-    if (index >= cells_.size()) {
-        throw SchemaError{"ColumnId " + std::to_string(id) + " is out of range for row"};
+const Cell& Row::cell(std::size_t id) const {
+    if (id >= cells_.size()) {
+        throw SchemaError{"column index " + std::to_string(id) + " is out of range for row"};
     }
-    return cells_[index];
+    return cells_[id];
 }
 
 // Return the number of cells in the row.

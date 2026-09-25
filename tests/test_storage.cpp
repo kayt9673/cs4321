@@ -58,11 +58,11 @@ int main() {
     const auto result{db.select(query)};
     const auto& rows{result.rows};
     assert(rows.size() == 2);
-    assert(std::get<int64_t>(rows[0].cell(ColumnId{0})) == 1);
-    assert(std::get<std::string>(rows[0].cell(ColumnId{1})) == "text with |, %, \"quotes\", and\na newline");
-    assert(std::get<std::vector<double>>(rows[0].cell(ColumnId{2})).size() == 3);
-    assert(std::get<int64_t>(rows[1].cell(ColumnId{0})) == -2);
-    assert(std::get<std::string>(rows[1].cell(ColumnId{1})).empty());
+    assert(std::get<int64_t>(rows[0].cell(std::size_t{0})) == 1);
+    assert(std::get<std::string>(rows[0].cell(std::size_t{1})) == "text with |, %, \"quotes\", and\na newline");
+    assert(std::get<std::vector<double>>(rows[0].cell(std::size_t{2})).size() == 3);
+    assert(std::get<int64_t>(rows[1].cell(std::size_t{0})) == -2);
+    assert(std::get<std::string>(rows[1].cell(std::size_t{1})).empty());
 
     bool invalidNameThrew{false};
     try {

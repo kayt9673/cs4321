@@ -95,9 +95,9 @@ int main() {
     assert(survivingResult.rows.size() == 2);
     for (std::size_t index{0}; index < survivingResult.rows.size(); ++index) {
         const auto& row{survivingResult.rows[index]};
-        assert(std::get<int64_t>(row.cell(ColumnId{0})) == static_cast<int64_t>(index + 1));
-        assert(std::get<std::string>(row.cell(ColumnId{1})) == text);
-        assert(std::get<std::vector<double>>(row.cell(ColumnId{2})) == embedding);
+        assert(std::get<int64_t>(row.cell(std::size_t{0})) == static_cast<int64_t>(index + 1));
+        assert(std::get<std::string>(row.cell(std::size_t{1})) == text);
+        assert(std::get<std::vector<double>>(row.cell(std::size_t{2})) == embedding);
     }
 
     DatabaseManager reopened{originalPath};

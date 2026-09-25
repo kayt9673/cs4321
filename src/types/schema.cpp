@@ -3,7 +3,6 @@
 #include "db/errors.hpp"
 #include "types/row.hpp"
 
-#include <limits>
 #include <utility>
 
 namespace vrdb {
@@ -17,13 +16,9 @@ Schema::Schema(std::vector<Column> columns)
 
     nameToId_.reserve(columns_.size());
     for (std::size_t index{0}; index < columns_.size(); ++index) {
-        if (index > std::numeric_limits<ColumnId>::max()) {
-            throw SchemaError{"schema has too many columns for ColumnId"};
-        }
-
         const auto& column{columns_[index]};
         column.validate();
-        const auto id{static_cast<ColumnId>(index)};
+        const auto id{index};
         const auto& name{columns_[index].name};
         if (!nameToId_.emplace(name, id).second) {
             throw SchemaError{"duplicate column name: " + name};
@@ -37,12 +32,11 @@ const std::vector<Column>& Schema::columns() const {
 }
 
 // Return a column by ID or name, rejecting missing columns.
-const Column& Schema::column(ColumnId id) const {
-    const auto index{static_cast<std::size_t>(id)};
-    if (index >= columns_.size()) {
-        throw SchemaError{"ColumnId " + std::to_string(id) + " is out of range"};
+const Column& Schema::column(std::size_t id) const {
+    if (id >= columns_.size()) {
+        throw SchemaError{"column index " + std::to_string(id) + " is out of range"};
     }
-    return columns_[index];
+    return columns_[id];
 }
 
 // Return a column by ID or name, rejecting missing columns.
@@ -70,7 +64,7 @@ bool Schema::hasColumn(std::string_view name) const {
 }
 
 // Resolve a column name to its ID, or return no value if absent.
-std::optional<ColumnId> Schema::columnId(std::string_view name) const {
+std::optional<std::size_t> Schema::columnId(std::string_view name) const {
     const auto found{nameToId_.find(std::string{name})};
     if (found == nameToId_.end()) {
         return std::nullopt;
@@ -79,7 +73,7 @@ std::optional<ColumnId> Schema::columnId(std::string_view name) const {
 }
 
 // Check that a cell matches its column type and vector dimension.
-void Schema::validateCell(ColumnId columnId, const Cell& cell) const {
+void Schema::validateCell(std::size_t columnId, const Cell& cell) const {
     const auto& expectedColumn{column(columnId)};
     const bool correctType{(isInteger(expectedColumn.type) && std::holds_alternative<std::int64_t>(cell)) ||
         (isText(expectedColumn.type) && std::holds_alternative<std::string>(cell)) ||
@@ -113,8 +107,7 @@ void Schema::validateRow(const Row& row) const {
     }
 
     for (std::size_t index{0}; index < size(); ++index) {
-        const auto id{static_cast<ColumnId>(index)};
-        validateCell(id, row.cell(id));
+        validateCell(index, row.cell(index));
     }
 }
 

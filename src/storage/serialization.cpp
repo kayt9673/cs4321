@@ -224,7 +224,7 @@ Row deserializeRowFromCsv(const std::vector<std::string>& fields, const Schema& 
     std::vector<Cell> cells{};
     cells.reserve(fields.size());
     for (std::size_t index{0}; index < fields.size(); ++index) {
-        cells.push_back(deserializeCellFromCsv(fields[index], schema.column(static_cast<ColumnId>(index))));
+        cells.push_back(deserializeCellFromCsv(fields[index], schema.column(index)));
     }
 
     return Row{std::move(cells)};

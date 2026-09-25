@@ -5,6 +5,7 @@
 #include "types/row.hpp"
 #include "types/schema.hpp"
 
+#include <cstddef>
 #include <vector>
 
 namespace vrdb {
@@ -16,11 +17,11 @@ public:
 
 private:
     // Evaluate one typed predicate against a row cell.
-    bool evaluatePredicate(const Predicate& predicate, ColumnId column, const Row& row) const;
+    bool evaluatePredicate(const Predicate& predicate, std::size_t column, const Row& row) const;
     // Copy the selected cells, or the whole row for an empty projection.
-    Row projectRow(const Row& row, const std::vector<ColumnId>& projection) const;
+    Row projectRow(const Row& row, const std::vector<std::size_t>& projection) const;
     // Build the selected-column schema, or copy it for an empty projection.
-    Schema projectSchema(const Schema& schema, const std::vector<ColumnId>& projection) const;
+    Schema projectSchema(const Schema& schema, const std::vector<std::size_t>& projection) const;
 };
 
 } // namespace vrdb

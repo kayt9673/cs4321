@@ -171,7 +171,7 @@ void Catalog::writeCatalog(const std::string& name) const {
     }
     writeCsvRecord(file, catalogHeader);
     for (std::size_t index{0}; index < schema.size(); ++index) {
-        const auto& column{schema.column(static_cast<ColumnId>(index))};
+            const auto& column{schema.column(index)};
         writeCsvRecord(file, {
             name,
             std::to_string(index),

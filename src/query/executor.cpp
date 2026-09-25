@@ -11,12 +11,12 @@ namespace vrdb {
 namespace {
 
 struct ResolvedPredicate {
-    ColumnId column;
+    std::size_t column;
     const Predicate* predicate;
 };
 
 // Resolve a column name or report an unknown-column query error.
-ColumnId requireColumn(const Schema& schema, std::string_view name) {
+std::size_t requireColumn(const Schema& schema, std::string_view name) {
     const auto id{schema.columnId(name)};
     if (!id) {
         throw QueryError{"unknown column: " + std::string{name}};
@@ -32,7 +32,7 @@ const std::string& predicateColumnName(const Predicate& predicate) {
 }
 
 // Check that a predicate matches its column type and vector dimension.
-void validatePredicate(const Predicate& predicate, ColumnId columnId, const Schema& schema) {
+void validatePredicate(const Predicate& predicate, std::size_t columnId, const Schema& schema) {
     const auto& column{schema.column(columnId)};
     std::visit([&](const auto& typedPredicate) {
         using PredicateType = std::decay_t<decltype(typedPredicate)>;
@@ -63,9 +63,9 @@ void validatePredicate(const Predicate& predicate, ColumnId columnId, const Sche
 
 // Filter rows, then apply offset, projection, and limit in input order.
 QueryResult QueryExecutor::execute(const Query& query, const Schema& schema, const std::vector<Row>& rows) const {
-    std::vector<ColumnId> projection{};
+    std::vector<std::size_t> projection{};
     projection.reserve(query.projection.size());
-    std::unordered_set<ColumnId> projectedColumns{};
+    std::unordered_set<std::size_t> projectedColumns{};
 
     for (const auto& columnName : query.projection) {
         // think we are doing double checks here but this is okay for now
@@ -175,7 +175,7 @@ QueryResult QueryExecutor::execute(const Query& query, const Schema& schema, con
 }
 
 // Evaluate one typed predicate against a row cell.
-bool QueryExecutor::evaluatePredicate(const Predicate& predicate, ColumnId column, const Row& row) const {
+bool QueryExecutor::evaluatePredicate(const Predicate& predicate, std::size_t column, const Row& row) const {
     return std::visit([&](const auto& typedPredicate) -> bool {
         using PredicateType = std::decay_t<decltype(typedPredicate)>;
         if constexpr (std::is_same_v<PredicateType, IntegerPredicate>) {
@@ -202,7 +202,7 @@ bool QueryExecutor::evaluatePredicate(const Predicate& predicate, ColumnId colum
 }
 
 // Copy the selected cells, or the whole row for an empty projection.
-Row QueryExecutor::projectRow(const Row& row, const std::vector<ColumnId>& projection) const {
+Row QueryExecutor::projectRow(const Row& row, const std::vector<std::size_t>& projection) const {
     if (projection.empty()) {
         return row;
     }
@@ -216,7 +216,7 @@ Row QueryExecutor::projectRow(const Row& row, const std::vector<ColumnId>& proje
 }
 
 // Build the selected-column schema, or copy it for an empty projection.
-Schema QueryExecutor::projectSchema(const Schema& schema, const std::vector<ColumnId>& projection) const {
+Schema QueryExecutor::projectSchema(const Schema& schema, const std::vector<std::size_t>& projection) const {
     if (projection.empty()) {
         return schema;
     }

@@ -22,9 +22,9 @@ transactions, joins, or an external database dependency yet.
 - `Schema`, `Column`, `Row`, and `Value`: strongly validated logical data model.
   `DataType` is a variant of `Int64Type`, `TextType`, and `VectorType`, so only
   vector columns can carry a dimension.
-- `ColumnId` and `RowId`: stable internal identifiers. Schemas resolve names to
-  `ColumnId` through a map; `StoredRow` keeps physical identity separate from
-  logical values. `QueryResult::rowIds` corresponds positionally to its rows.
+- Column indices use `std::size_t` and schemas resolve names to indices through
+  a map; `StoredRow` keeps physical identity separate from logical values.
+  `QueryResult::rowIds` corresponds positionally to its rows.
 - `Predicate`, `Query`, `QueryResult`, and `QueryExecutor`: programmatic query
   representation and a sequential-scan executor with projection, offset, limit,
   integer predicates, text equality predicates, and vector-distance predicates.

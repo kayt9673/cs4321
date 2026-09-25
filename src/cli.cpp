@@ -147,7 +147,7 @@ vrdb::Row parseRowValues(const vrdb::Schema& schema, int argc, char** argv, int 
     values.reserve(schema.size());
     for (std::size_t index{0}; index < schema.size(); ++index) {
         values.push_back(parseCell(argv[firstValue + static_cast<int>(index)],
-                                    schema.column(static_cast<vrdb::ColumnId>(index))));
+                                    schema.column(index)));
     }
     return vrdb::Row{std::move(values)};
 }

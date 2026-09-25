@@ -64,8 +64,7 @@ std::vector<Row> FileStorageEngine::readRows(const std::string& tableName, const
         throw StorageError{"table CSV header width does not match schema: " + tableName};
     }
     for (std::size_t index{0}; index < fields.size(); ++index) {
-        const auto id{static_cast<ColumnId>(index)};
-        if (fields[index] != schema.column(id).name) {
+        if (fields[index] != schema.column(index).name) {
             throw StorageError{"table CSV header does not match schema: " + tableName};
         }
     }

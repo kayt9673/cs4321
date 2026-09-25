@@ -1,7 +1,6 @@
 #pragma once
 
 #include "types/column.hpp"
-#include "types/ids.hpp"
 #include "types/cell.hpp"
 
 #include <cstddef>
@@ -23,7 +22,7 @@ public:
     // Return the schema columns in declaration order.
     const std::vector<Column>& columns() const;
     // Return a column by ID or name, rejecting missing columns.
-    const Column& column(ColumnId id) const;
+    const Column& column(std::size_t id) const;
     // Return a column by ID or name, rejecting missing columns.
     const Column& column(std::string_view name) const;
     // Return the number of columns in the schema.
@@ -34,15 +33,15 @@ public:
     // Return whether the schema contains the given column name.
     bool hasColumn(std::string_view name) const;
     // Resolve a column name to its ID, or return no value if absent.
-    std::optional<ColumnId> columnId(std::string_view name) const;
+    std::optional<std::size_t> columnId(std::string_view name) const;
     // Check that a cell matches its column type and vector dimension.
-    void validateCell(ColumnId column, const Cell& cell) const;
+    void validateCell(std::size_t column, const Cell& cell) const;
     // Check row width and validate each cell against the schema.
     void validateRow(const Row& row) const;
 
 private:
     std::vector<Column> columns_;
-    std::unordered_map<std::string, ColumnId> nameToId_;
+    std::unordered_map<std::string, std::size_t> nameToId_;
 };
 
 } // namespace vrdb
