@@ -105,6 +105,13 @@ exercise catalog and row recovery. `select` currently performs an all-row query
 and writes CSV to standard output. Rich predicates remain available through the
 C++ `Query` API; the CLI intentionally does not include a SQL parser yet.
 
+`select <table> --pretty` prints a formatted table instead of CSV: integers are
+right-aligned, multi-line text is shown on one line, and vectors with more than
+six elements are abbreviated. When writing to a terminal, the CLI colors column
+types (`INTEGER` cyan, `TEXT` yellow, `VECTOR` magenta), success messages, and
+errors. Output piped to a file or another program stays plain. Set `NO_COLOR`
+to turn colors off, or `CLICOLOR_FORCE=1` to force them on.
+
 The separate `vrdb_demo` executable remains as a hard-coded API example.
 
 ## Test
