@@ -2,18 +2,18 @@
 
 namespace vrdb {
 
-// Return the active cell type name, or EMPTY for a valueless variant.
-std::string_view cellTypeName(const Cell& cell) noexcept {
+// Return the active cell data type, or EMPTY for a valueless variant.
+DataType cellTypeName(const Cell& cell) noexcept {
     if (std::holds_alternative<std::int64_t>(cell)) {
-        return "INTEGER";
+        return DataType::INTEGER;
     }
     if (std::holds_alternative<std::string>(cell)) {
-        return "TEXT";
+        return DataType::TEXT;
     }
     if (std::holds_alternative<std::vector<double>>(cell)) {
-        return "VECTOR";
+        return DataType::VECTOR;
     }
-    return "EMPTY";
+    return DataType::EMPTY;
 }
 
 } // namespace vrdb

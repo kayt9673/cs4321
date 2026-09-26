@@ -15,11 +15,11 @@ Schema::Schema(std::vector<Column> columns)
     }
 
     nameToId_.reserve(columns_.size());
-    for (std::size_t index{0}; index < columns_.size(); ++index) {
-        const auto& column{columns_[index]};
+    for (std::size_t i{0}; i < columns_.size(); ++i) {
+        const auto& column{columns_[i]};
         column.validate();
-        const auto id{index};
-        const auto& name{columns_[index].name};
+        const auto id{i};
+        const auto& name{columns_[i].name};
         if (!nameToId_.emplace(name, id).second) {
             throw SchemaError{"duplicate column name: " + name};
         }
@@ -75,22 +75,15 @@ std::optional<std::size_t> Schema::columnId(std::string_view name) const {
 // Check that a cell matches its column type and vector dimension.
 void Schema::validateCell(std::size_t columnId, const Cell& cell) const {
     const auto& expectedColumn{column(columnId)};
-    const bool correctType{(isInteger(expectedColumn.type) && std::holds_alternative<std::int64_t>(cell)) ||
-        (isText(expectedColumn.type) && std::holds_alternative<std::string>(cell)) ||
-        (isVector(expectedColumn.type) && std::holds_alternative<std::vector<double>>(cell))};
+
+    const auto actualType{cellTypeName(cell)};
+    const bool correctType{expectedColumn.type == actualType};
 
     if (!correctType) {
         throw SchemaError{
             "column '" + expectedColumn.name + "' expects " +
-            std::string{columnTypeName(expectedColumn.type)} + " but received " +
-            std::string{cellTypeName(cell)}};
-    }
-
-    if (isText(expectedColumn.type)) {
-        constexpr std::string_view allowed{"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_0123456789"};
-        if (std::get<std::string>(cell).find_first_not_of(allowed) != std::string::npos) {
-            throw SchemaError{"TEXT column '" + expectedColumn.name + "' allows only ASCII letters, digits, and underscores"};
-        }
+            std::string{dataTypeName(expectedColumn.type)} + " but received " +
+            std::string{dataTypeName(actualType)}};
     }
 
     if (isVector(expectedColumn.type)) {
@@ -113,8 +106,8 @@ void Schema::validateRow(const Row& row) const {
             std::to_string(row.size())};
     }
 
-    for (std::size_t index{0}; index < size(); ++index) {
-        validateCell(index, row.cell(index));
+    for (std::size_t i{0}; i < size(); ++i) {
+        validateCell(i, row.cell(i));
     }
 }
 

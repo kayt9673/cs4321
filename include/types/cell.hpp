@@ -1,9 +1,10 @@
 #pragma once
 
+#include "types/data_type.hpp"
+
 #include <cstdint>
 #include <limits>
 #include <string>
-#include <string_view>
 #include <variant>
 #include <vector>
 
@@ -16,7 +17,7 @@ static_assert(std::numeric_limits<double>::is_iec559 &&
 
 using Cell = std::variant<std::int64_t, std::string, std::vector<double>>;
 
-// Return the active cell type name, or EMPTY for a valueless variant.
-std::string_view cellTypeName(const Cell& cell) noexcept;
+// Return the active cell data type, or EMPTY for a valueless variant.
+DataType cellTypeName(const Cell& cell) noexcept;
 
 } // namespace vrdb

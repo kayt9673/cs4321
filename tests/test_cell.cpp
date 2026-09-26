@@ -26,7 +26,7 @@ int main() {
     // Preserve precision and range that float32 cannot represent.
     const std::vector<double> precise{std::nextafter(1.0, 2.0), 1.2345678901234567,
                               1e100, 1e-100, std::numeric_limits<double>::max()};
-    const Column preciseColumn{"precise", ColumnType::VECTOR, precise.size()};
+    const Column preciseColumn{"precise", DataType::VECTOR, precise.size()};
     const auto encoded{serializeCellForCsv(Cell{precise})};
     const auto decoded{deserializeCellFromCsv(encoded, preciseColumn)};
     assert(std::get<std::vector<double>>(decoded) == precise);
@@ -47,9 +47,9 @@ int main() {
     assert(std::get<std::int64_t>(ownedCopy) == 9);
 
     const Schema schema{{
-        Column{"id", ColumnType::INTEGER},
-        Column{"text", ColumnType::TEXT},
-        Column{"embedding", ColumnType::VECTOR, 2},
+        Column{"id", DataType::INTEGER},
+        Column{"text", DataType::TEXT},
+        Column{"embedding", DataType::VECTOR, 2},
     }};
     const Row row{{integer, text, vector}};
     schema.validateRow(row);
@@ -72,18 +72,17 @@ int main() {
     assert(readCsvRecord(csv, fields));
     assert(deserializeRowFromCsv(fields, schema).cells() == row.cells());
 
-    // Valid TEXT values contain only ASCII letters, digits, and underscores.
-    // Empty TEXT values remain valid, including the final field in a record.
+    // TEXT values may include ordinary spaces and punctuation; empty strings remain valid.
     std::stringstream records{};
     writeCsvRecord(records, {"", "plain", "Alpha_012", ""});
     writeCsvRecord(records, {"next"});
-    writeCsvRecord(records, {""});
+    writeCsvRecord(records, {"A little review with spaces and punctuation!"});
     assert(readCsvRecord(records, fields));
     assert((fields == std::vector<std::string>{"", "plain", "Alpha_012", ""}));
     assert(readCsvRecord(records, fields));
     assert((fields == std::vector<std::string>{"next"}));
     assert(readCsvRecord(records, fields));
-    assert((fields == std::vector<std::string>{""}));
+    assert((fields == std::vector<std::string>{"A little review with spaces and punctuation!"}));
     assert(!readCsvRecord(records, fields));
     assert(fields.empty());
 
@@ -95,21 +94,10 @@ int main() {
     }
     assert(!readCsvRecord(endings, fields));
 
-    for (const auto invalid : {"a b", "a,b", "a\"b", "a\nb", "a\rb", "a\tb", "a-b", "é"}) {
-        bool rejected{false};
-        try {
-            schema.validateRow(Row{{integer, std::string{invalid}, vector}});
-        } catch (const SchemaError&) {
-            rejected = true;
-        }
-        assert(rejected);
-        rejected = false;
-        try {
-            deserializeRowFromCsv({"7", invalid, "[1.25,-2.5]"}, schema);
-        } catch (const SchemaError&) {
-            rejected = true;
-        }
-        assert(rejected);
+    for (const auto valid : {"a b", "a,b", "a\"b", "a\nb", "a\rb", "a\tb", "a-b", "é"}) {
+        assert(std::holds_alternative<std::string>(Cell{std::string{valid}}));
+        schema.validateRow(Row{{integer, std::string{valid}, vector}});
+        assert(std::get<std::string>(deserializeRowFromCsv({"7", valid, "[1.25,-2.5]"}, schema).cell(1)) == valid);
     }
 
     // Fields written by writeCsvRecord can contain commas, quotes, and newlines.
@@ -137,11 +125,11 @@ int main() {
     assert(std::get<std::string>(legacy.cell(1)) == "legacy_text");
     assert(std::get<std::vector<double>>(legacy.cell(2)) == std::get<std::vector<double>>(vector));
     const auto column{deserializeColumn("embedding", "VECTOR", "2")};
-    assert(column.type == ColumnType::VECTOR && column.vectorDimension == 2);
+    assert(column.type == DataType::VECTOR && column.vectorDimension == 2);
     assert(serializeTypeDimension(column) == "2");
     assert(serializeTypeDimension(schema.column(0)).empty());
 
-    for (const auto type : {ColumnType::INTEGER, ColumnType::TEXT}) {
+    for (const auto type : {DataType::INTEGER, DataType::TEXT}) {
         bool rejected{false};
         try {
             static_cast<void>(Column{"bad", type, 3});
@@ -151,7 +139,7 @@ int main() {
         assert(rejected);
     }
     // Public metadata modified after construction must still be validated.
-    Column invalid{"embedding", ColumnType::VECTOR, 2};
+    Column invalid{"embedding", DataType::VECTOR, 2};
     invalid.vectorDimension = 0;
     bool rejected{false};
     try {

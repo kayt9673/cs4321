@@ -99,7 +99,7 @@ bool readCsvRecord(std::istream& input, std::vector<std::string>& fields) {
             } else if (insideQuotes) { // closing quote
                 fields.push_back(std::move(field));
                 field.clear();
-                if (next == ',') {
+                if (next == ',') { //ensure sequence of closing quote, comma, opening quote for next field
                     input.get(); // remove the separator from the buffer
                     next = input.peek(); // check the next character after the separator
                     if (next != '"') {
@@ -135,10 +135,10 @@ bool readCsvRecord(std::istream& input, std::vector<std::string>& fields) {
 // Encode a cell as text, preserving double precision in vectors.
 std::string serializeCellForCsv(const Cell& cell) {
     const auto type{cellTypeName(cell)};
-    if (type == "INTEGER") {
+    if (type == DataType::INTEGER) {
         return std::to_string(std::get<std::int64_t>(cell));
     }
-    if (type == "TEXT") {
+    if (type == DataType::TEXT) {
         return std::get<std::string>(cell);
     }
 
@@ -218,13 +218,13 @@ Column deserializeColumn(const std::string& columnName, const std::string& name,
         if (!dimension.empty()) {
             throw StorageError{"INTEGER type must not declare a vector dimension"};
         }
-        return Column{columnName, ColumnType::INTEGER};
+        return Column{columnName, DataType::INTEGER};
     }
     if (name == "TEXT") {
         if (!dimension.empty()) {
             throw StorageError{"TEXT type must not declare a vector dimension"};
         }
-        return Column{columnName, ColumnType::TEXT};
+        return Column{columnName, DataType::TEXT};
     }
     if (name == "VECTOR") {
         if (dimension.empty()) {
@@ -240,7 +240,7 @@ Column deserializeColumn(const std::string& columnName, const std::string& name,
             if (value > std::numeric_limits<std::size_t>::max()) {
                 throw StorageError{"invalid VECTOR dimension: " + dimension};
             }
-            return Column{columnName, ColumnType::VECTOR, static_cast<std::size_t>(value)};
+            return Column{columnName, DataType::VECTOR, static_cast<std::size_t>(value)};
         } catch (const DatabaseError&) {
             throw;
         } catch (const std::exception&) {

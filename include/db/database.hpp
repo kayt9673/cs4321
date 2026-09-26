@@ -3,12 +3,9 @@
 #include "db/catalog.hpp"
 #include "query/executor.hpp"
 #include "query/query.hpp"
-#include "query/query_result.hpp"
 #include "storage/file_storage_engine.hpp"
-#include "storage/storage_engine.hpp"
 
 #include <filesystem>
-#include <memory>
 #include <string>
 #include <vector>
 
@@ -39,7 +36,7 @@ public:
 
 private:
     Catalog catalog_;
-    std::unique_ptr<StorageEngine> storage_;
+    FileStorageEngine storage_;
     QueryExecutor executor_;
 };
 

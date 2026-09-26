@@ -34,50 +34,55 @@ Predicate vectorDistanceLessThan(std::string column, std::vector<double> referen
 // Evaluate an integer comparison using the requested operator.
 bool evaluateIntegerComparison(int64_t left, ComparisonOperator op, int64_t right) {
     switch (op) {
-    case ComparisonOperator::EQUAL:
-        return left == right;
-    case ComparisonOperator::NOT_EQUAL:
-        return left != right;
-    case ComparisonOperator::LESS_THAN:
-        return left < right;
-    case ComparisonOperator::LESS_THAN_OR_EQUAL:
-        return left <= right;
-    case ComparisonOperator::GREATER_THAN:
-        return left > right;
-    case ComparisonOperator::GREATER_THAN_OR_EQUAL:
-        return left >= right;
+        case ComparisonOperator::EQUAL:
+            return left == right;
+        case ComparisonOperator::NOT_EQUAL:
+            return left != right;
+        case ComparisonOperator::LESS_THAN:
+            return left < right;
+        case ComparisonOperator::LESS_THAN_OR_EQUAL:
+            return left <= right;
+        case ComparisonOperator::GREATER_THAN:
+            return left > right;
+        case ComparisonOperator::GREATER_THAN_OR_EQUAL:
+            return left >= right;
     }
     throw QueryError{"unknown comparison operator"};
 }
 
-// Evaluate text equality or inequality; reject other operators.
 bool evaluateTextComparison(const std::string& left, ComparisonOperator op, const std::string& right) {
     switch (op) {
-    case ComparisonOperator::EQUAL:
-        return left == right;
-    case ComparisonOperator::NOT_EQUAL:
-        return left != right;
-    case ComparisonOperator::LESS_THAN:
-    case ComparisonOperator::LESS_THAN_OR_EQUAL:
-    case ComparisonOperator::GREATER_THAN:
-    case ComparisonOperator::GREATER_THAN_OR_EQUAL:
-        throw QueryError{"operator is not supported for text predicates"};
+        case ComparisonOperator::EQUAL:
+            return left == right;
+        case ComparisonOperator::NOT_EQUAL:
+            return left != right;
+        case ComparisonOperator::LESS_THAN:
+            return left < right;
+        case ComparisonOperator::LESS_THAN_OR_EQUAL:
+            return left <= right;
+        case ComparisonOperator::GREATER_THAN:
+            return left > right;
+        case ComparisonOperator::GREATER_THAN_OR_EQUAL:
+            return left >= right;
     }
     throw QueryError{"unknown comparison operator"};
 }
 
-// Compare a distance with its threshold using less-than or less-than-or-equal.
+// Evaluate a floating-point comparison using the requested operator.
 bool evaluateFloatComparison(double left, ComparisonOperator op, double right) {
     switch (op) {
-    case ComparisonOperator::LESS_THAN:
-        return left < right;
-    case ComparisonOperator::LESS_THAN_OR_EQUAL:
-        return left <= right;
-    case ComparisonOperator::EQUAL:
-    case ComparisonOperator::NOT_EQUAL:
-    case ComparisonOperator::GREATER_THAN:
-    case ComparisonOperator::GREATER_THAN_OR_EQUAL:
-        throw QueryError{"operator is not supported for vector distance predicates"};
+        case ComparisonOperator::EQUAL:
+            return left == right;
+        case ComparisonOperator::NOT_EQUAL:
+            return left != right;
+        case ComparisonOperator::LESS_THAN:
+            return left < right;
+        case ComparisonOperator::LESS_THAN_OR_EQUAL:
+            return left <= right;
+        case ComparisonOperator::GREATER_THAN:
+            return left > right;
+        case ComparisonOperator::GREATER_THAN_OR_EQUAL:
+            return left >= right;
     }
     throw QueryError{"unknown comparison operator"};
 }

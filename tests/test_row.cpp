@@ -30,9 +30,9 @@ int main() {
     using namespace vrdb;
 
     const Schema schema{{
-        Column{"year", ColumnType::INTEGER},
-        Column{"review", ColumnType::TEXT},
-        Column{"embedding", ColumnType::VECTOR, 3},
+        Column{"year", DataType::INTEGER},
+        Column{"review", DataType::TEXT},
+        Column{"embedding", DataType::VECTOR, 3},
     }};
 
     const Row validRow{{
@@ -125,8 +125,8 @@ int main() {
     }});
 
     const Schema integerBoundsSchema{{
-        Column{"minimum", ColumnType::INTEGER},
-        Column{"maximum", ColumnType::INTEGER},
+        Column{"minimum", DataType::INTEGER},
+        Column{"maximum", DataType::INTEGER},
     }};
     integerBoundsSchema.validateRow(Row{{
         std::numeric_limits<std::int64_t>::min(),

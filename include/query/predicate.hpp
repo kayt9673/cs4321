@@ -55,9 +55,9 @@ Predicate vectorDistanceLessThan(std::string column, std::vector<double> referen
 
 // Evaluate an integer comparison using the requested operator.
 bool evaluateIntegerComparison(int64_t left, ComparisonOperator op, int64_t right);
-// Evaluate text equality or inequality; reject other operators.
+// Evaluate a lexicographic text comparison using the requested operator.
 bool evaluateTextComparison(const std::string& left, ComparisonOperator op, const std::string& right);
-// Compare a distance with its threshold using less-than or less-than-or-equal.
+// Evaluate a floating-point comparison using the requested operator.
 bool evaluateFloatComparison(double left, ComparisonOperator op, double right);
 
 } // namespace vrdb

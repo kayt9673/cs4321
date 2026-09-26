@@ -55,10 +55,6 @@ void Catalog::validateString(const std::string& name) {
 // Load each table schema from its own catalog file.
 void Catalog::load() {
     tables_.clear();
-    if (std::filesystem::exists(path_.parent_path() / "catalog.csv")) {
-        throw StorageError{"shared catalog must be migrated to per-table catalogs"};
-    }
-
     for (const auto& entry : std::filesystem::directory_iterator{path_}) {
         if (!entry.is_regular_file() || entry.path().extension() != ".csv") {
             continue;
@@ -70,35 +66,21 @@ void Catalog::load() {
         if (!file) {
             throw StorageError{"unable to read catalog for table: " + tableName};
         }
+        // read catalog header
         std::vector<std::string> fields{};
         if (!readCsvRecord(file, fields) || fields != catalogHeader) {
             throw StorageError{"invalid or missing catalog header for table: " + tableName};
         }
 
-        std::vector<std::pair<std::size_t, Column>> indexedColumns{};
+        std::vector<Column> columns{};
         while (readCsvRecord(file, fields)) {
             if (fields.size() != catalogHeader.size() || fields[0] != tableName) {
                 throw StorageError{"malformed catalog record for table: " + tableName};
             }
-            indexedColumns.emplace_back(
-                parseColumnIndex(fields[1]),
-                deserializeColumn(fields[2], fields[3], fields[4]));
+            columns.emplace_back(deserializeColumn(fields[2], fields[3], fields[4]));
         }
         if (file.bad()) {
             throw StorageError{"failed to read catalog for table: " + tableName};
-        }
-        std::sort(indexedColumns.begin(), indexedColumns.end(), [](const auto& left, const auto& right) {
-            return left.first < right.first;
-        });
-
-        std::vector<Column> columns{};
-        columns.reserve(indexedColumns.size());
-        for (std::size_t expectedIndex{0}; expectedIndex < indexedColumns.size(); ++expectedIndex) {
-            if (indexedColumns[expectedIndex].first != expectedIndex) {
-                throw StorageError{
-                    "catalog has missing or duplicate column indexes for table: " + tableName};
-            }
-            columns.push_back(std::move(indexedColumns[expectedIndex].second));
         }
         tables_.emplace(tableName, Schema{std::move(columns)});
     }
@@ -177,7 +159,7 @@ void Catalog::writeCatalog(const std::string& name) const {
             name,
             std::to_string(index),
             column.name,
-            std::string{columnTypeName(column.type)},
+            std::string{dataTypeName(column.type)},
             serializeTypeDimension(column),
         });
     }

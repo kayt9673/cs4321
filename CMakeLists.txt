@@ -11,6 +11,7 @@ add_library(vrdb
     src/db/catalog.cpp
     src/db/errors.cpp
     src/query/predicate.cpp
+    src/types/data_type.cpp
     src/types/cell.cpp
     src/types/column.cpp
     src/types/schema.cpp
@@ -55,6 +56,10 @@ add_test(NAME database_ownership COMMAND test_database_ownership)
 add_executable(test_predicates tests/test_predicates.cpp)
 target_link_libraries(test_predicates PRIVATE vrdb)
 add_test(NAME predicates COMMAND test_predicates)
+
+add_executable(test_varied_tables tests/test_varied_tables.cpp)
+target_link_libraries(test_varied_tables PRIVATE vrdb)
+add_test(NAME varied_tables COMMAND test_varied_tables)
 
 add_executable(test_distance tests/test_distance.cpp)
 target_link_libraries(test_distance PRIVATE vrdb)

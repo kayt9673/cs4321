@@ -70,13 +70,13 @@ vrdb::Column parseColumn(const std::string& specification) {
     const auto name{specification.substr(0, separator)};
     const auto type{uppercase(specification.substr(separator + 1))};
     if (type == "INTEGER") {
-        return vrdb::Column{name, vrdb::ColumnType::INTEGER};
+        return vrdb::Column{name, vrdb::DataType::INTEGER};
     }
     if (type == "TEXT") {
-        return vrdb::Column{name, vrdb::ColumnType::TEXT};
+        return vrdb::Column{name, vrdb::DataType::TEXT};
     }
     if (type.size() > 8 && type.rfind("VECTOR(", 0) == 0 && type.back() == ')') {
-        return vrdb::Column{name, vrdb::ColumnType::VECTOR,
+        return vrdb::Column{name, vrdb::DataType::VECTOR,
                             parseSize(type.substr(7, type.size() - 8), "vector dimension")};
     }
     throw std::invalid_argument{"unknown column type: " + type};
@@ -261,7 +261,7 @@ void printSuccess(const std::string& message) {
 void printSchema(const vrdb::Schema& schema) {
     std::vector<std::vector<std::string>> rows{};
     for (const auto& column : schema.columns()) {
-        std::string type{vrdb::columnTypeName(column.type)};
+        std::string type{vrdb::dataTypeName(column.type)};
         if (vrdb::isVector(column.type)) {
             type += '(' + std::to_string(column.vectorDimension) + ')';
         }

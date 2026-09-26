@@ -1,7 +1,6 @@
 #pragma once
 
 #include "query/query.hpp"
-#include "query/query_result.hpp"
 #include "types/row.hpp"
 #include "types/schema.hpp"
 

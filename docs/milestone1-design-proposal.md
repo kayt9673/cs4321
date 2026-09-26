@@ -238,7 +238,7 @@ Execution can dispatch based on the predicate type without manually storing a pr
 
 # **QueryResult**
 
-`include/query/query_result.hpp`
+`include/query/query.hpp`
 
 | /\*\*  \* Represents the result returned from a query.  \*/ struct QueryResult {     // Schema describing the columns in the returned rows.     Schema schema;     // Rows that matched the query.     std::vector\<Row\> rows; }; |
 | :---- |

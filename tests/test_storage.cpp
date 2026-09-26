@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-// Test persistence, restricted TEXT values, and rejection of invalid rows and names.
+// Test persistence, permissive TEXT values, and rejection of invalid rows and names.
 int main() {
     using namespace vrdb;
 
@@ -14,9 +14,9 @@ int main() {
     std::filesystem::remove_all(root);
 
     Schema schema{{
-        Column{"id", ColumnType::INTEGER},
-        Column{"review", ColumnType::TEXT},
-        Column{"embedding", ColumnType::VECTOR, 3},
+        Column{"id", DataType::INTEGER},
+        Column{"review", DataType::TEXT},
+        Column{"embedding", DataType::VECTOR, 3},
     }};
 
     {
@@ -37,19 +37,16 @@ int main() {
             std::string{},
             std::vector<double>{0.0, -2.5, 4.25},
         }});
-
-        bool threw{false};
-        try {
-            db.insert("reviews", Row{{int64_t{2}, std::string{"bad"}, std::vector<double>{1.0}}});
-        } catch (const SchemaError&) {
-            threw = true;
-        }
-        assert(threw);
+        db.insert("reviews", Row{{
+            int64_t{2},
+            std::string{"A little review with spaces and punctuation!"},
+            std::vector<double>{1.0, 2.0, 3.0},
+        }});
     }
 
     DatabaseManager db{root};
     assert(db.hasTable("reviews"));
-    assert(db.rowCount("reviews") == 2);
+    assert(db.rowCount("reviews") == 3);
     assert(db.listTables() == std::vector<std::string>{"reviews"});
     assert(db.getSchema("reviews").column("embedding").vectorDimension == 3);
 
@@ -57,12 +54,14 @@ int main() {
     query.table = "reviews";
     const auto result{db.select(query)};
     const auto& rows{result.rows};
-    assert(rows.size() == 2);
+    assert(rows.size() == 3);
     assert(std::get<int64_t>(rows[0].cell(std::size_t{0})) == 1);
     assert(std::get<std::string>(rows[0].cell(std::size_t{1})) == "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_0123456789");
     assert(std::get<std::vector<double>>(rows[0].cell(std::size_t{2})).size() == 3);
     assert(std::get<int64_t>(rows[1].cell(std::size_t{0})) == -2);
     assert(std::get<std::string>(rows[1].cell(std::size_t{1})).empty());
+    assert(std::get<std::string>(rows[2].cell(std::size_t{1})) == "A little review with spaces and punctuation!");
+    assert(std::get<int64_t>(rows[2].cell(std::size_t{0})) == 2);
 
     bool invalidNameThrew{false};
     try {

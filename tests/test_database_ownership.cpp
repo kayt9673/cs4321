@@ -54,9 +54,9 @@ int main() {
     const std::string text{std::string(65536, 'x') + "_ABC_0123456789"};
     const std::vector<double> embedding(4096, 1.25);
     const Schema schema{{
-        Column{"id", ColumnType::INTEGER},
-        Column{"review", ColumnType::TEXT},
-        Column{"embedding", ColumnType::VECTOR, embedding.size()},
+        Column{"id", DataType::INTEGER},
+        Column{"review", DataType::TEXT},
+        Column{"embedding", DataType::VECTOR, embedding.size()},
     }};
     Query query{};
     query.table = "reviews";

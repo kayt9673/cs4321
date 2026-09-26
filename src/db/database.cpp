@@ -9,7 +9,7 @@ namespace vrdb {
 // Open database storage and load the persisted catalog.
 DatabaseManager::DatabaseManager(const std::filesystem::path& storagePath)
     : catalog_{storagePath},
-      storage_{std::make_unique<FileStorageEngine>(storagePath / "tables")} {
+      storage_{storagePath / "tables"} {
     catalog_.load();
 }
 
@@ -17,7 +17,7 @@ DatabaseManager::DatabaseManager(const std::filesystem::path& storagePath)
 void DatabaseManager::createTable(const std::string& name, const Schema& schema) {    
     try {
         catalog_.createTable(name, schema);
-        storage_->createTable(name, schema);
+        storage_.createTable(name, schema);
     } catch (...) {
         throw;
     }
@@ -28,20 +28,20 @@ void DatabaseManager::dropTable(const std::string& name) {
     if (!catalog_.hasTable(name)) {
         throw DatabaseError{"unknown table: " + name};
     }
-    storage_->dropTable(name);
+    storage_.dropTable(name);
     catalog_.dropTable(name);
 }
 
 // Validate and append a row to the named table.
 void DatabaseManager::insert(const std::string& tableName, const Row& row) {
     const auto& schema{catalog_.getSchema(tableName)};
-    storage_->appendRow(tableName, schema, row);
+    storage_.appendRow(tableName, schema, row);
 }
 
 // Read a table and execute the requested query against its rows.
 QueryResult DatabaseManager::select(const Query& query) {
     const auto& schema{catalog_.getSchema(query.table)};
-    return executor_.execute(query, schema, storage_->readRows(query.table, schema));
+    return executor_.execute(query, schema, storage_.readRows(query.table, schema));
 }
 
 // Return whether the catalog contains the named table.
@@ -62,7 +62,7 @@ const Schema& DatabaseManager::getSchema(const std::string& tableName) const {
 // Read the table and return its number of stored rows.
 std::size_t DatabaseManager::rowCount(const std::string& tableName) const {
     const auto& schema{catalog_.getSchema(tableName)};
-    return storage_->readRows(tableName, schema).size();
+    return storage_.readRows(tableName, schema).size();
 }
 
 } // namespace vrdb

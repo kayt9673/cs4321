@@ -17,10 +17,10 @@ int main() {
     assert(evaluateIntegerComparison(7, ComparisonOperator::GREATER_THAN_OR_EQUAL, 7));
 
     Schema schema{{
-        Column{"id", ColumnType::INTEGER},
-        Column{"rating", ColumnType::INTEGER},
-        Column{"review", ColumnType::TEXT},
-        Column{"embedding", ColumnType::VECTOR, 2},
+        Column{"id", DataType::INTEGER},
+        Column{"rating", DataType::INTEGER},
+        Column{"review", DataType::TEXT},
+        Column{"embedding", DataType::VECTOR, 2},
     }};
 
     std::vector<Row> rows{{

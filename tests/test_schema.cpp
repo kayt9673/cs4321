@@ -28,11 +28,11 @@ int main() {
     using namespace vrdb;
 
     const Schema schema{{
-        Column{"year", ColumnType::INTEGER},
-        Column{"review", ColumnType::TEXT},
-        Column{"small_embedding", ColumnType::VECTOR, 1},
-        Column{"embedding", ColumnType::VECTOR, 384},
-        Column{"large_embedding", ColumnType::VECTOR, 768},
+        Column{"year", DataType::INTEGER},
+        Column{"review", DataType::TEXT},
+        Column{"small_embedding", DataType::VECTOR, 1},
+        Column{"embedding", DataType::VECTOR, 384},
+        Column{"large_embedding", DataType::VECTOR, 768},
     }};
 
     assert(schema.size() == 5);
@@ -51,7 +51,7 @@ int main() {
     assert(schema.column(std::size_t{2}).name == "small_embedding");
 
     expectSchemaError(
-        [] { static_cast<void>(Column{"embedding", ColumnType::VECTOR, 0}); },
+        [] { static_cast<void>(Column{"embedding", DataType::VECTOR, 0}); },
         "vector dimension must be greater than zero");
     expectSchemaError(
         [] { static_cast<void>(Schema{std::vector<Column>{}}); },
@@ -59,26 +59,26 @@ int main() {
     expectSchemaError(
         [] {
             static_cast<void>(Schema{{
-                Column{"embedding", ColumnType::VECTOR, 384},
-                Column{"embedding", ColumnType::TEXT},
+                Column{"embedding", DataType::VECTOR, 384},
+                Column{"embedding", DataType::TEXT},
             }});
         },
         "duplicate column name: embedding");
     expectSchemaError(
-        [] { static_cast<void>(Column{"", ColumnType::INTEGER}); },
+        [] { static_cast<void>(Column{"", DataType::INTEGER}); },
         "column name cannot be empty");
 
     const std::string allowed{"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_0123456789"};
-    assert((Column{allowed, ColumnType::TEXT}.name == allowed));
+    assert((Column{allowed, DataType::TEXT}.name == allowed));
     for (const auto invalid : {"has space", "has,comma", "has\"quote", "has\nnewline", "has-hyphen", "é"}) {
         expectSchemaError(
-            [invalid] { static_cast<void>(Column{invalid, ColumnType::TEXT}); },
+            [invalid] { static_cast<void>(Column{invalid, DataType::TEXT}); },
             "allows only ASCII letters, digits, and underscores");
     }
 
     const Schema caseSensitiveSchema{{
-        Column{"Embedding", ColumnType::VECTOR, 1},
-        Column{"embedding", ColumnType::VECTOR, 1},
+        Column{"Embedding", DataType::VECTOR, 1},
+        Column{"embedding", DataType::VECTOR, 1},
     }};
     assert(caseSensitiveSchema.columnId("Embedding") == std::size_t{0});
     assert(caseSensitiveSchema.columnId("embedding") == std::size_t{1});
