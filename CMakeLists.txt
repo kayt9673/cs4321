@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(vrdb
-    src/db/database.cpp
+    src/db/database_manager.cpp
     src/db/catalog.cpp
     src/db/errors.cpp
     src/query/predicate.cpp

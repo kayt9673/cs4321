@@ -11,10 +11,16 @@
 
 namespace vrdb {
 
+// Coordinate catalog, storage, and query execution for a database.
 class DatabaseManager {
 public:
     // Open database storage and load the persisted catalog.
     explicit DatabaseManager(const std::filesystem::path& storagePath);
+
+    DatabaseManager(const DatabaseManager&) = delete;
+    DatabaseManager& operator=(const DatabaseManager&) = delete;
+    DatabaseManager(DatabaseManager&&) = default;
+    DatabaseManager& operator=(DatabaseManager&&) = default;
 
     // Create a table and persist its schema and storage.
     void createTable(const std::string& name, const Schema& schema);

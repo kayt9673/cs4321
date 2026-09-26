@@ -54,10 +54,10 @@ if(NOT EXISTS "${TEST_ROOT}/tables/documents.csv")
     message(FATAL_ERROR "create did not create the table CSV")
 endif()
 
-run_cli(insert documents 2 "float64" "[16777217,1.2345678901234567,1e100]")
+run_cli(insert documents 2 "float32" "[16777216,1.00000011920928955078125,1e30]")
 run_cli(select documents)
-if(NOT CLI_OUTPUT MATCHES "16777217,1[.]2345678901234567")
-    message(FATAL_ERROR "CLI did not preserve float64 vector precision")
+if(NOT CLI_OUTPUT MATCHES "16777216,1[.]00000012")
+    message(FATAL_ERROR "CLI did not preserve float32 vector precision")
 endif()
 
 file(REMOVE_RECURSE "${TEST_ROOT}")

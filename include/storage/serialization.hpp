@@ -17,7 +17,7 @@ void writeCsvRecord(std::ostream& output, const std::vector<std::string>& fields
 // Read a record written by writeCsvRecord; return false only at initial EOF.
 bool readCsvRecord(std::istream& input, std::vector<std::string>& fields);
 
-// Encode a cell as text, preserving double precision in vectors.
+// Encode a cell as text, preserving float precision in vectors.
 std::string serializeCellForCsv(const Cell& cell);
 // Decode a CSV field according to its column definition.
 Cell deserializeCellFromCsv(const std::string& field, const Column& column);

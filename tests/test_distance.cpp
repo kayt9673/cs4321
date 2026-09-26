@@ -4,9 +4,10 @@
 #include <cassert>
 #include <cmath>
 #include <stdexcept>
+#include <limits>
 #include <vector>
 
-// Test distance calculations, invalid vectors, and double precision.
+// Test distance calculations, invalid vectors, and float coordinates.
 int main() {
     using namespace vrdb;
 
@@ -31,8 +32,11 @@ int main() {
     }
     assert(threw);
 
-    // Neither coordinates nor the resulting distance may narrow to float32.
-    assert(euclideanDistance({16777216.0}, {16777217.0}) == 1.0);
-    assert(euclideanDistance({0.0}, {1.0000000001}) == 1.0000000001);
+    // Float coordinates retain their precision; arithmetic uses double accumulators.
+    const float adjacent = std::nextafter(1.0f, 2.0f);
+    assert(euclideanDistance({1.0f}, {adjacent}) == static_cast<double>(adjacent) - 1.0);
+    const float largest = std::numeric_limits<float>::max();
+    assert(euclideanDistance({-largest}, {largest}) == 2.0 * largest);
+    assert(std::fabs(cosineDistance({largest}, {largest})) < 0.0001);
     return 0;
 }

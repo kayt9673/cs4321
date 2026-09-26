@@ -1,4 +1,4 @@
-#include "db/database.hpp"
+#include "db/database_manager.hpp"
 #include "db/errors.hpp"
 
 #include <cassert>
@@ -61,17 +61,17 @@ int main() {
         Column{"notes", DataType::TEXT},
     }};
     const std::vector<Row> items{
-        Row{{std::vector<double>{0, 0}, std::string{"A"}, int64_t{0},
-             std::string{"tools"}, std::vector<double>{1, 0, 0}, int64_t{1250},
+        Row{{std::vector<float>{0, 0}, std::string{"A"}, int64_t{0},
+             std::string{"tools"}, std::vector<float>{1, 0, 0}, int64_t{1250},
              std::string{"Spare, \"small\"\nsecond line"}}},
-        Row{{std::vector<double>{3, 4}, std::string{"B"}, int64_t{12},
-             std::string{"tools"}, std::vector<double>{0, 1, 0}, int64_t{2500},
+        Row{{std::vector<float>{3, 4}, std::string{"B"}, int64_t{12},
+             std::string{"tools"}, std::vector<float>{0, 1, 0}, int64_t{2500},
              std::string{}}},
-        Row{{std::vector<double>{6, 8}, std::string{"C"}, int64_t{-2},
-             std::string{"garden"}, std::vector<double>{1, 0, 0}, int64_t{750},
+        Row{{std::vector<float>{6, 8}, std::string{"C"}, int64_t{-2},
+             std::string{"garden"}, std::vector<float>{1, 0, 0}, int64_t{750},
              std::string{"Backordered!"}}},
-        Row{{std::vector<double>{0, 5}, std::string{"D"}, int64_t{7},
-             std::string{"tools"}, std::vector<double>{1, 0, 0}, int64_t{1800},
+        Row{{std::vector<float>{0, 5}, std::string{"D"}, int64_t{7},
+             std::string{"tools"}, std::vector<float>{1, 0, 0}, int64_t{1800},
              std::string{"Ready to ship"}}},
     };
 

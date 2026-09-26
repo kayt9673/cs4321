@@ -1,4 +1,4 @@
-#include "db/database.hpp"
+#include "db/database_manager.hpp"
 #include "storage/serialization.hpp"
 
 #include <algorithm>
@@ -83,12 +83,12 @@ vrdb::Column parseColumn(const std::string& specification) {
 }
 
 // Parse a bracketed list of floating-point coordinates.
-std::vector<double> parseVector(const std::string& input) {
+std::vector<float> parseVector(const std::string& input) {
     if (input.size() < 2 || input.front() != '[' || input.back() != ']') {
         throw std::invalid_argument{"invalid VECTOR cell: " + input};
     }
 
-    std::vector<double> vector{};
+    std::vector<float> vector{};
     const auto payload{input.substr(1, input.size() - 2)};
     if (!payload.empty() && (payload.front() == ',' || payload.back() == ',')) {
         throw std::invalid_argument{"invalid VECTOR cell: " + input};
@@ -99,7 +99,7 @@ std::vector<double> parseVector(const std::string& input) {
         const auto part{payload.substr(begin, end == std::string::npos ? end : end - begin)};
         try {
             std::size_t parsed{0};
-            const auto value{std::stod(part, &parsed)};
+            const auto value{std::stof(part, &parsed)};
             if (parsed != part.size()) {
                 throw std::invalid_argument{"trailing characters"};
             }

@@ -1,4 +1,4 @@
-#include "db/database.hpp"
+#include "db/database_manager.hpp"
 #include "db/errors.hpp"
 
 #include <cassert>
@@ -30,17 +30,17 @@ int main() {
         db.insert("reviews", Row{{
             std::int64_t{1},
             std::string{"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_0123456789"},
-            std::vector<double>{1.0, 2.0, 3.0},
+            std::vector<float>{1.0, 2.0, 3.0},
         }});
         db.insert("reviews", Row{{
             int64_t{-2},
             std::string{},
-            std::vector<double>{0.0, -2.5, 4.25},
+            std::vector<float>{0.0, -2.5, 4.25},
         }});
         db.insert("reviews", Row{{
             int64_t{2},
             std::string{"A little review with spaces and punctuation!"},
-            std::vector<double>{1.0, 2.0, 3.0},
+            std::vector<float>{1.0, 2.0, 3.0},
         }});
     }
 
@@ -57,7 +57,7 @@ int main() {
     assert(rows.size() == 3);
     assert(std::get<int64_t>(rows[0].cell(std::size_t{0})) == 1);
     assert(std::get<std::string>(rows[0].cell(std::size_t{1})) == "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_0123456789");
-    assert(std::get<std::vector<double>>(rows[0].cell(std::size_t{2})).size() == 3);
+    assert(std::get<std::vector<float>>(rows[0].cell(std::size_t{2})).size() == 3);
     assert(std::get<int64_t>(rows[1].cell(std::size_t{0})) == -2);
     assert(std::get<std::string>(rows[1].cell(std::size_t{1})).empty());
     assert(std::get<std::string>(rows[2].cell(std::size_t{1})) == "A little review with spaces and punctuation!");
@@ -72,7 +72,7 @@ int main() {
     assert(invalidNameThrew);
 
     db.createTable("other", schema);
-    db.insert("other", Row{{int64_t{1}, std::string{"kept"}, std::vector<double>{1, 2, 3}}});
+    db.insert("other", Row{{int64_t{1}, std::string{"kept"}, std::vector<float>{1, 2, 3}}});
     const auto otherCatalog{root / "catalogs" / "other.csv"};
     const auto otherModified{std::filesystem::last_write_time(otherCatalog)};
     db.dropTable("reviews");

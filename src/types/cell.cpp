@@ -10,7 +10,7 @@ DataType cellTypeName(const Cell& cell) noexcept {
     if (std::holds_alternative<std::string>(cell)) {
         return DataType::TEXT;
     }
-    if (std::holds_alternative<std::vector<double>>(cell)) {
+    if (std::holds_alternative<std::vector<float>>(cell)) {
         return DataType::VECTOR;
     }
     return DataType::EMPTY;

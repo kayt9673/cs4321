@@ -11,10 +11,10 @@
 
 The database is organized into the following modules:
 
-| include/ ├── db/ │   ├── database.hpp │   └── catalog.hpp │ ├── types/ │   ├── cell.hpp │   ├── column.hpp │   ├── schema.hpp │   └── row.hpp │ ├── storage/ │   ├── storage\_engine.hpp │   ├── file\_storage\_engine.hpp │   └── serialization.hpp │ ├── query/ │   ├── query.hpp │   ├── predicate.hpp │   ├── query\_result.hpp │   └── executor.hpp │ └── vector/     └── distance.hpp  |
+| include/ ├── db/ │   ├── database\_manager.hpp │   └── catalog.hpp │ ├── types/ │   ├── cell.hpp │   ├── column.hpp │   ├── schema.hpp │   └── row.hpp │ ├── storage/ │   ├── storage\_engine.hpp │   ├── file\_storage\_engine.hpp │   └── serialization.hpp │ ├── query/ │   ├── query.hpp │   ├── predicate.hpp │   ├── query\_result.hpp │   └── executor.hpp │ └── vector/     └── distance.hpp  |
 | :---- |
 
-| src/ ├── db/ │   ├── database.cpp │   └── catalog.cpp │ ├── types/ │   ├── schema.cpp │   └── row.cpp │ ├── storage/ │   ├── file\_storage\_engine.cpp │   └── serialization.cpp │ ├── query/ │   ├── predicate.cpp │   └── executor.cpp │ └── vector/     └── distance.cpp |
+| src/ ├── db/ │   ├── database\_manager.cpp │   └── catalog.cpp │ ├── types/ │   ├── schema.cpp │   └── row.cpp │ ├── storage/ │   ├── file\_storage\_engine.cpp │   └── serialization.cpp │ ├── query/ │   ├── predicate.cpp │   └── executor.cpp │ └── vector/     └── distance.cpp |
 | :---- |
 
 # **Types**
@@ -293,7 +293,7 @@ Execution can dispatch based on the predicate type without manually storing a pr
 
 # **Database**
 
-`include/db/database.hpp`
+`include/db/database_manager.hpp`
 
 | /\*\*  \* Main interface for interacting with the database.  \*/ class Database { public:     // Opens or creates a database at the given path.     explicit Database(         const std::filesystem::path& path     );     // Creates a new table with the given schema.     void createTable(         const std::string& name,         const Schema& schema     );     // Removes a table from the database.     void dropTable(         const std::string& name     );     // Inserts a row into the specified table.     void insert(         const std::string& tableName,         const Row& row     );     // Executes a query and returns its results.     QueryResult select(         const Query& query     );     // Returns whether the named table exists.     bool hasTable(         const std::string& name     ) const;     // Returns the names of all tables in the database.     std::vector\<std::string\> listTables() const;     // Returns the schema for the specified table.     const Schema& getSchema(         const std::string& tableName     ) const;     // Returns the number of rows in the specified table.     std::size\_t rowCount(         const std::string& tableName     ) const; private:     // Stores table names and schemas.     Catalog catalog\_;     // Handles persistent table and row storage.     std::unique\_ptr\<StorageEngine\> storage\_;     // Executes queries against stored rows.     QueryExecutor executor\_; }; |
 | :---- |

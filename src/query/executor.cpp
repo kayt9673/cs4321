@@ -191,7 +191,7 @@ bool QueryExecutor::evaluatePredicate(const Predicate& predicate, std::size_t co
             }
             return evaluateTextComparison(*value, typedPredicate.op, typedPredicate.value);
         } else {
-            const auto* value{std::get_if<std::vector<double>>(&row.cell(column))};
+            const auto* value{std::get_if<std::vector<float>>(&row.cell(column))};
             if (!value) {
                 throw QueryError{"row cell is not a vector"};
             }

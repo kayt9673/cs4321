@@ -38,7 +38,7 @@ int main() {
     const Row validRow{{
         std::int64_t{2024},
         std::string{"hello"},
-        std::vector<double>{1.0, 2.0, 3.0},
+        std::vector<float>{1.0, 2.0, 3.0},
     }};
     schema.validateRow(validRow);
 
@@ -53,7 +53,7 @@ int main() {
             schema.validateRow(Row{{
                 std::int64_t{2024},
                 std::string{"hello"},
-                std::vector<double>{1.0, 2.0, 3.0},
+                std::vector<float>{1.0, 2.0, 3.0},
                 std::int64_t{4},
             }});
         },
@@ -63,16 +63,16 @@ int main() {
             schema.validateRow(Row{{
                 std::string{"2024"},
                 std::string{"hello"},
-                std::vector<double>{1.0, 2.0, 3.0},
+                std::vector<float>{1.0, 2.0, 3.0},
             }});
         },
         "column 'year' expects INTEGER but received TEXT");
     expectSchemaError(
         [&schema] {
             schema.validateRow(Row{{
-                std::vector<double>{2024.0},
+                std::vector<float>{2024.0},
                 std::string{"hello"},
-                std::vector<double>{1.0, 2.0, 3.0},
+                std::vector<float>{1.0, 2.0, 3.0},
             }});
         },
         "column 'year' expects INTEGER but received VECTOR");
@@ -81,7 +81,7 @@ int main() {
             schema.validateRow(Row{{
                 std::int64_t{2024},
                 std::int64_t{5},
-                std::vector<double>{1.0, 2.0, 3.0},
+                std::vector<float>{1.0, 2.0, 3.0},
             }});
         },
         "column 'review' expects TEXT but received INTEGER");
@@ -99,7 +99,7 @@ int main() {
             schema.validateRow(Row{{
                 std::int64_t{2024},
                 std::string{"hello"},
-                std::vector<double>{1.0, 2.0},
+                std::vector<float>{1.0, 2.0},
             }});
         },
         "vector column 'embedding' expects dimension 3 but received 2");
@@ -108,7 +108,7 @@ int main() {
             schema.validateRow(Row{{
                 std::int64_t{2024},
                 std::string{"hello"},
-                std::vector<double>{1.0, 2.0, 3.0, 4.0},
+                std::vector<float>{1.0, 2.0, 3.0, 4.0},
             }});
         },
         "vector column 'embedding' expects dimension 3 but received 4");
@@ -116,12 +116,12 @@ int main() {
     schema.validateRow(Row{{
         std::int64_t{-1},
         std::string{},
-        std::vector<double>{-1.0, -2.0, -3.0},
+        std::vector<float>{-1.0, -2.0, -3.0},
     }});
     schema.validateRow(Row{{
         std::int64_t{0},
         std::string{"zero_vector"},
-        std::vector<double>{0.0, 0.0, 0.0},
+        std::vector<float>{0.0, 0.0, 0.0},
     }});
 
     const Schema integerBoundsSchema{{

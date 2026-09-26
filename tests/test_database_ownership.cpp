@@ -1,4 +1,4 @@
-#include "db/database.hpp"
+#include "db/database_manager.hpp"
 
 #include <cassert>
 #include <filesystem>
@@ -52,7 +52,7 @@ int main() {
     const auto replacedPath{temporary.path / "replaced"};
     const auto reusedPath{temporary.path / "reused"};
     const std::string text{std::string(65536, 'x') + "_ABC_0123456789"};
-    const std::vector<double> embedding(4096, 1.25);
+    const std::vector<float> embedding(4096, 1.25);
     const Schema schema{{
         Column{"id", DataType::INTEGER},
         Column{"review", DataType::TEXT},
@@ -97,7 +97,7 @@ int main() {
         const auto& row{survivingResult.rows[index]};
         assert(std::get<int64_t>(row.cell(std::size_t{0})) == static_cast<int64_t>(index + 1));
         assert(std::get<std::string>(row.cell(std::size_t{1})) == text);
-        assert(std::get<std::vector<double>>(row.cell(std::size_t{2})) == embedding);
+        assert(std::get<std::vector<float>>(row.cell(std::size_t{2})) == embedding);
     }
 
     DatabaseManager reopened{originalPath};

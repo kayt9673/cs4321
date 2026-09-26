@@ -12,10 +12,10 @@ namespace vrdb {
 namespace {
 
 // Parse a floating-point coordinate and reject trailing input.
-double parseFloat(const std::string& field, const std::string& columnName) {
+float parseFloat(const std::string& field, const std::string& columnName) {
     try {
         std::size_t parsed{0};
-        const auto value{std::stod(field, &parsed)};
+        const auto value{std::stof(field, &parsed)};
         if (parsed != field.size()) {
             throw StorageError{"invalid vector value in column '" + columnName + "'"};
         }
@@ -28,12 +28,12 @@ double parseFloat(const std::string& field, const std::string& columnName) {
 }
 
 // Parse a bracketed vector and check its declared dimension.
-std::vector<double> parseVector(const std::string& field, const Column& column) {
+std::vector<float> parseVector(const std::string& field, const Column& column) {
     if (field.size() < 2 || field.front() != '[' || field.back() != ']') {
         throw StorageError{"invalid vector encoding in column '" + column.name + "'"};
     }
 
-    std::vector<double> vector{};
+    std::vector<float> vector{};
     const auto payload{field.substr(1, field.size() - 2)};
     if (!payload.empty()) {
         if (payload.front() == ',' || payload.back() == ',') {
@@ -132,7 +132,7 @@ bool readCsvRecord(std::istream& input, std::vector<std::string>& fields) {
     return true;
 }
 
-// Encode a cell as text, preserving double precision in vectors.
+// Encode a cell as text, preserving float precision in vectors.
 std::string serializeCellForCsv(const Cell& cell) {
     const auto type{cellTypeName(cell)};
     if (type == DataType::INTEGER) {
@@ -142,9 +142,9 @@ std::string serializeCellForCsv(const Cell& cell) {
         return std::get<std::string>(cell);
     }
 
-    const auto& vector{std::get<std::vector<double>>(cell)};
+    const auto& vector{std::get<std::vector<float>>(cell)};
     std::ostringstream output{};
-    output << std::setprecision(std::numeric_limits<double>::max_digits10) << '[';
+    output << std::setprecision(std::numeric_limits<float>::max_digits10) << '[';
     for (std::size_t index{0}; index < vector.size(); ++index) {
         if (index > 0) {
             output << ',';

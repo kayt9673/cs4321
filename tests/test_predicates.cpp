@@ -24,8 +24,8 @@ int main() {
     }};
 
     std::vector<Row> rows{{
-        Row{{int64_t{1}, int64_t{8}, std::string{"keep"}, std::vector<double>{1.0, 0.0}}},
-        Row{{int64_t{2}, int64_t{3}, std::string{"skip"}, std::vector<double>{0.0, 1.0}}},
+        Row{{int64_t{1}, int64_t{8}, std::string{"keep"}, std::vector<float>{1.0, 0.0}}},
+        Row{{int64_t{2}, int64_t{3}, std::string{"skip"}, std::vector<float>{0.0, 1.0}}},
     }};
 
     Query query{};
@@ -50,10 +50,10 @@ int main() {
 
     Query preciseQuery{};
     preciseQuery.table = "reviews";
-    preciseQuery.predicates.push_back(vectorDistanceLessThan("embedding", {0.0, 0.0}, 1.0000000002));
+    preciseQuery.predicates.push_back(vectorDistanceLessThan("embedding", {0.0, 0.0}, 1.0000002));
     const std::vector<Row> preciseRows{
-        Row{{int64_t{3}, int64_t{8}, std::string{"near"}, std::vector<double>{1.0000000001, 0.0}}},
-        Row{{int64_t{4}, int64_t{8}, std::string{"far"}, std::vector<double>{1.0000000003, 0.0}}},
+        Row{{int64_t{3}, int64_t{8}, std::string{"near"}, std::vector<float>{1.0000001f, 0.0}}},
+        Row{{int64_t{4}, int64_t{8}, std::string{"far"}, std::vector<float>{1.0000003f, 0.0}}},
     };
     const auto preciseResult{executor.execute(preciseQuery, schema, preciseRows)};
     assert(preciseResult.rows.size() == 1);

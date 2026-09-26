@@ -88,7 +88,7 @@ void Schema::validateCell(std::size_t columnId, const Cell& cell) const {
 
     if (isVector(expectedColumn.type)) {
         const auto expectedDimension{expectedColumn.vectorDimension};
-        const auto receivedDimension{std::get<std::vector<double>>(cell).size()};
+        const auto receivedDimension{std::get<std::vector<float>>(cell).size()};
         if (expectedDimension != receivedDimension) {
             throw SchemaError{
                 "vector column '" + expectedColumn.name + "' expects dimension " +

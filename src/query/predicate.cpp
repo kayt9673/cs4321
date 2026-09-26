@@ -19,14 +19,14 @@ Predicate textComparison(std::string column, ComparisonOperator op, std::string 
 // Build a vector-distance predicate with a reference vector and threshold.
 Predicate vectorDistance(std::string column,
                          DistanceMetric metric,
-                         std::vector<double> referenceVector,
+                         std::vector<float> referenceVector,
                          ComparisonOperator op,
                          double threshold) {
     return VectorPredicate{std::move(column), metric, std::move(referenceVector), op, threshold};
 }
 
 // Build a Euclidean-distance predicate with a strict upper threshold.
-Predicate vectorDistanceLessThan(std::string column, std::vector<double> referenceVector, double threshold) {
+Predicate vectorDistanceLessThan(std::string column, std::vector<float> referenceVector, double threshold) {
     return vectorDistance(
         std::move(column), DistanceMetric::EUCLIDEAN, std::move(referenceVector), ComparisonOperator::LESS_THAN, threshold);
 }
