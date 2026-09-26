@@ -22,9 +22,9 @@ transactions, joins, or an external database dependency yet.
 - `Schema`, `Column`, `Row`, and `Value`: strongly validated logical data model.
   `DataType` is a variant of `Int64Type`, `TextType`, and `VectorType`, so only
   vector columns can carry a dimension.
-- `ColumnId` and `RowId`: stable internal identifiers. Schemas resolve names to
-  `ColumnId` through a map; `StoredRow` keeps physical identity separate from
-  logical values. `QueryResult::rowIds` corresponds positionally to its rows.
+- Column indices use `std::size_t` and schemas resolve names to indices through
+  a map; `StoredRow` keeps physical identity separate from logical values.
+  `QueryResult::rowIds` corresponds positionally to its rows.
 - `Predicate`, `Query`, `QueryResult`, and `QueryExecutor`: programmatic query
   representation and a sequential-scan executor with projection, offset, limit,
   integer predicates, text equality predicates, and vector-distance predicates.
@@ -76,7 +76,7 @@ my_database/
 dimensions. Each table CSV has a leading `__vrdb_row_id` physical column,
 then the logical schema columns. A small `.nextid` sidecar records the next
 internal ID so deleting the newest row cannot cause ID reuse. TEXT
-values use CSV quote escaping, including embedded commas, quotes, and newlines.
+values contain only ASCII letters, digits, and underscores; empty strings are allowed.
 A vector is stored in one CSV field such as `"[0.1,-0.2,0.3]"`.
 
 The current storage is row-oriented because inserts and queries operate on

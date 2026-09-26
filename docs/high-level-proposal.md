@@ -1,8 +1,8 @@
 # **C++ Vector-Relational Database**
 
 > **Current implementation note:** Persistent databases use a directory with
-> `catalog.csv` plus one row-oriented CSV file per table under `tables/`. The
-> logical schema uses parameterized `VectorType` values and stable `ColumnId`
+> one catalog per table under `catalogs/` plus one row-oriented CSV file per table under `tables/`. The
+> logical schema uses `ColumnType` with validated vector dimensions and stable `ColumnId`
 > identifiers. See [storage-format.md](storage-format.md) for the concrete
 > format and recovery behavior.
 
@@ -85,7 +85,7 @@ A `Schema` is the ordered definition of the columns belonging to a table.
 | Field | Definition |
 | ----- | ----- |
 | `name` | User-defined name identifying the column |
-| `type` | Data type of values stored in the column |
+| `type` | Data type of cells stored in the column |
 | `type parameters` | Additional information required by the selected type |
 
 Supported column types for Milestone 1:
@@ -120,18 +120,18 @@ A parameterized type where `n` is the dimension. Different vector columns may ha
 
 ### **`TEXT`**
 
-Text must support empty strings and characters that have special meaning in the underlying storage format.
+Text supports empty strings and ASCII letters, digits, and underscores only.
 
 | Property | Definition |
 | ----- | ----- |
 | Representation | Variable-length string |
 | Equality | `=`, `!=` |
 | Ordering | Not initially supported |
-| Example | `"database systems"` |
+| Example | `"database_systems"` |
 
 ## **Row**
 
-A `Row` is an ordered collection of values conforming to a table's schema.
+A `Row` is an ordered collection of cells conforming to a table's schema.
 
 **Example:** Valid and invalid rows 
 

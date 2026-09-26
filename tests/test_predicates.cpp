@@ -1,9 +1,11 @@
-#include "query/executor.h"
+#include "query/executor.hpp"
+#include "db/errors.hpp"
 
 #include <cassert>
 #include <string>
 #include <vector>
 
+// Test predicate comparisons, query filtering, projection, and limits.
 int main() {
     using namespace vrdb;
 
@@ -14,38 +16,59 @@ int main() {
     assert(evaluateIntegerComparison(7, ComparisonOperator::GREATER_THAN, 6));
     assert(evaluateIntegerComparison(7, ComparisonOperator::GREATER_THAN_OR_EQUAL, 7));
 
-    Schema schema({
-        Column("id", Int64Type{}),
-        Column("rating", Int64Type{}),
-        Column("review", TextType{}),
-        Column("embedding", VectorType{2}),
-    });
+    Schema schema{{
+        Column{"id", DataType::INTEGER},
+        Column{"rating", DataType::INTEGER},
+        Column{"review", DataType::TEXT},
+        Column{"embedding", DataType::VECTOR, 2},
+    }};
 
-    std::vector<StoredRow> rows({
-        StoredRow{41, Row({int64_t{1}, int64_t{8}, std::string{"keep"}, std::vector<float>{1.0f, 0.0f}})},
-        StoredRow{42, Row({int64_t{2}, int64_t{3}, std::string{"skip"}, std::vector<float>{0.0f, 1.0f}})},
-    });
+    std::vector<Row> rows{{
+        Row{{int64_t{1}, int64_t{8}, std::string{"keep"}, std::vector<float>{1.0, 0.0}}},
+        Row{{int64_t{2}, int64_t{3}, std::string{"skip"}, std::vector<float>{0.0, 1.0}}},
+    }};
 
-    Query query;
+    Query query{};
     query.table = "reviews";
     query.projection = {"id", "review"};
     query.predicates.push_back(integerComparison("rating", ComparisonOperator::GREATER_THAN_OR_EQUAL, 7));
     query.predicates.push_back(textComparison("review", ComparisonOperator::EQUAL, "keep"));
     query.predicates.push_back(
-        vectorDistance("embedding", DistanceMetric::COSINE, {1.0f, 0.0f}, ComparisonOperator::LESS_THAN_OR_EQUAL, 0.0f));
+        vectorDistance("embedding", DistanceMetric::COSINE, {1.0, 0.0}, ComparisonOperator::LESS_THAN_OR_EQUAL, 0.0));
 
-    QueryExecutor executor;
-    const auto result = executor.execute(query, schema, rows);
+    QueryExecutor executor{};
+    const auto result{executor.execute(query, schema, rows)};
     assert(result.schema.size() == 2);
     assert(result.rows.size() == 1);
-    assert(result.rowIds == std::vector<RowId>{41});
-    assert(std::get<int64_t>(result.rows[0].value(0)) == 1);
-    assert(std::get<std::string>(result.rows[0].value(1)) == "keep");
+    assert(std::get<int64_t>(result.rows[0].cell(0)) == 1);
+    assert(std::get<std::string>(result.rows[0].cell(1)) == "keep");
 
-    Query emptyResultQuery;
+    Query emptyResultQuery{};
     emptyResultQuery.table = "reviews";
     emptyResultQuery.limit = 0;
     assert(executor.execute(emptyResultQuery, schema, rows).rows.empty());
 
+    Query preciseQuery{};
+    preciseQuery.table = "reviews";
+    preciseQuery.predicates.push_back(vectorDistanceLessThan("embedding", {0.0, 0.0}, 1.0000002));
+    const std::vector<Row> preciseRows{
+        Row{{int64_t{3}, int64_t{8}, std::string{"near"}, std::vector<float>{1.0000001f, 0.0}}},
+        Row{{int64_t{4}, int64_t{8}, std::string{"far"}, std::vector<float>{1.0000003f, 0.0}}},
+    };
+    const auto preciseResult{executor.execute(preciseQuery, schema, preciseRows)};
+    assert(preciseResult.rows.size() == 1);
+    assert(std::get<int64_t>(preciseResult.rows[0].cell(0)) == 3);
+    // Queries retain their own predicate payloads when copied.
+    auto copiedQuery{query};
+    query.predicates.clear();
+    assert(executor.execute(copiedQuery, schema, rows).rows.size() == 1);
+    copiedQuery.predicates = {textComparison("rating", ComparisonOperator::EQUAL, "8")};
+    bool rejected{false};
+    try {
+        static_cast<void>(executor.execute(copiedQuery, schema, rows));
+    } catch (const QueryError&) {
+        rejected = true;
+    }
+    assert(rejected);
     return 0;
 }

@@ -1,6 +1,6 @@
-#include "db/errors.h"
-#include "types/row.h"
-#include "types/schema.h"
+#include "db/errors.hpp"
+#include "types/row.hpp"
+#include "types/schema.hpp"
 
 #include <cassert>
 #include <cstdint>
@@ -10,132 +10,128 @@
 
 namespace {
 
+// Check that an operation throws SchemaError containing the expected text.
 template <typename Function>
 void expectSchemaError(Function&& function, const std::string& expectedMessagePart) {
-    bool threw = false;
+    bool threw{false};
     try {
         std::forward<Function>(function)();
     } catch (const vrdb::SchemaError& error) {
         threw = true;
-        assert(std::string(error.what()).find(expectedMessagePart) != std::string::npos);
+        assert(std::string{error.what()}.find(expectedMessagePart) != std::string::npos);
     }
     assert(threw);
 }
 
 } // namespace
 
+// Test row validation and integer bounds.
 int main() {
     using namespace vrdb;
 
-    const Schema schema({
-        Column("year", Int64Type{}),
-        Column("review", TextType{}),
-        Column("embedding", VectorType{3}),
-    });
+    const Schema schema{{
+        Column{"year", DataType::INTEGER},
+        Column{"review", DataType::TEXT},
+        Column{"embedding", DataType::VECTOR, 3},
+    }};
 
-    const Row validRow({
+    const Row validRow{{
         std::int64_t{2024},
         std::string{"hello"},
-        VectorValue{1.0f, 2.0f, 3.0f},
-    });
+        std::vector<float>{1.0, 2.0, 3.0},
+    }};
     schema.validateRow(validRow);
 
     expectSchemaError(
-        [&schema] { schema.validateRow(Row({})); },
-        "row expects 3 values but received 0");
+        [&schema] { schema.validateRow(Row{{}}); },
+        "row expects 3 cells but received 0");
     expectSchemaError(
-        [&schema] { schema.validateRow(Row({std::int64_t{2024}, std::string{"hello"}})); },
-        "row expects 3 values but received 2");
+        [&schema] { schema.validateRow(Row{{std::int64_t{2024}, std::string{"hello"}}}); },
+        "row expects 3 cells but received 2");
     expectSchemaError(
         [&schema] {
-            schema.validateRow(Row({
+            schema.validateRow(Row{{
                 std::int64_t{2024},
                 std::string{"hello"},
-                VectorValue{1.0f, 2.0f, 3.0f},
+                std::vector<float>{1.0, 2.0, 3.0},
                 std::int64_t{4},
-            }));
+            }});
         },
-        "row expects 3 values but received 4");
+        "row expects 3 cells but received 4");
     expectSchemaError(
         [&schema] {
-            schema.validateRow(Row({
+            schema.validateRow(Row{{
                 std::string{"2024"},
                 std::string{"hello"},
-                VectorValue{1.0f, 2.0f, 3.0f},
-            }));
+                std::vector<float>{1.0, 2.0, 3.0},
+            }});
         },
         "column 'year' expects INTEGER but received TEXT");
     expectSchemaError(
         [&schema] {
-            schema.validateRow(Row({
-                VectorValue{2024.0f},
+            schema.validateRow(Row{{
+                std::vector<float>{2024.0},
                 std::string{"hello"},
-                VectorValue{1.0f, 2.0f, 3.0f},
-            }));
+                std::vector<float>{1.0, 2.0, 3.0},
+            }});
         },
         "column 'year' expects INTEGER but received VECTOR");
     expectSchemaError(
         [&schema] {
-            schema.validateRow(Row({
+            schema.validateRow(Row{{
                 std::int64_t{2024},
                 std::int64_t{5},
-                VectorValue{1.0f, 2.0f, 3.0f},
-            }));
+                std::vector<float>{1.0, 2.0, 3.0},
+            }});
         },
         "column 'review' expects TEXT but received INTEGER");
     expectSchemaError(
         [&schema] {
-            schema.validateRow(Row({
+            schema.validateRow(Row{{
                 std::int64_t{2024},
                 std::string{"hello"},
                 std::int64_t{3},
-            }));
+            }});
         },
         "column 'embedding' expects VECTOR but received INTEGER");
     expectSchemaError(
         [&schema] {
-            schema.validateRow(Row({
+            schema.validateRow(Row{{
                 std::int64_t{2024},
                 std::string{"hello"},
-                VectorValue{1.0f, 2.0f},
-            }));
+                std::vector<float>{1.0, 2.0},
+            }});
         },
         "vector column 'embedding' expects dimension 3 but received 2");
     expectSchemaError(
         [&schema] {
-            schema.validateRow(Row({
+            schema.validateRow(Row{{
                 std::int64_t{2024},
                 std::string{"hello"},
-                VectorValue{1.0f, 2.0f, 3.0f, 4.0f},
-            }));
+                std::vector<float>{1.0, 2.0, 3.0, 4.0},
+            }});
         },
         "vector column 'embedding' expects dimension 3 but received 4");
 
-    schema.validateRow(Row({
+    schema.validateRow(Row{{
         std::int64_t{-1},
         std::string{},
-        VectorValue{-1.0f, -2.0f, -3.0f},
-    }));
-    schema.validateRow(Row({
+        std::vector<float>{-1.0, -2.0, -3.0},
+    }});
+    schema.validateRow(Row{{
         std::int64_t{0},
-        std::string{"zero vector"},
-        VectorValue{0.0f, 0.0f, 0.0f},
-    }));
+        std::string{"zero_vector"},
+        std::vector<float>{0.0, 0.0, 0.0},
+    }});
 
-    const Schema integerBoundsSchema({
-        Column("minimum", Int64Type{}),
-        Column("maximum", Int64Type{}),
-    });
-    integerBoundsSchema.validateRow(Row({
+    const Schema integerBoundsSchema{{
+        Column{"minimum", DataType::INTEGER},
+        Column{"maximum", DataType::INTEGER},
+    }};
+    integerBoundsSchema.validateRow(Row{{
         std::numeric_limits<std::int64_t>::min(),
         std::numeric_limits<std::int64_t>::max(),
-    }));
-
-    const Row identicalValues({std::int64_t{7}, std::string{"same"}, VectorValue{0.0f, 0.0f, 0.0f}});
-    const StoredRow first{RowId{100}, identicalValues};
-    const StoredRow second{RowId{101}, identicalValues};
-    assert(first.id != second.id);
-    assert(first.row.values() == second.row.values());
+    }});
 
     return 0;
 }

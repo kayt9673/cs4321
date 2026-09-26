@@ -1,119 +1,113 @@
-#include "types/schema.h"
+#include "types/schema.hpp"
 
-#include "db/errors.h"
-#include "types/row.h"
+#include "db/errors.hpp"
+#include "types/row.hpp"
 
-#include <limits>
 #include <utility>
 
 namespace vrdb {
 
-Column::Column(std::string columnName, DataType dataType)
-    : name(std::move(columnName)), type(std::move(dataType)) {
-    if (name.empty()) {
-        throw SchemaError("column name cannot be empty");
-    }
-}
-
+// Validate columns and build the column-name lookup map.
 Schema::Schema(std::vector<Column> columns)
-    : columns_(std::move(columns)) {
+    : columns_{std::move(columns)} {
     if (columns_.empty()) {
-        throw SchemaError("schema must contain at least one column");
+        throw SchemaError{"schema must contain at least one column"};
     }
 
     nameToId_.reserve(columns_.size());
-    for (std::size_t index = 0; index < columns_.size(); ++index) {
-        if (index > std::numeric_limits<ColumnId>::max()) {
-            throw SchemaError("schema has too many columns for ColumnId");
-        }
-
-        const auto id = static_cast<ColumnId>(index);
-        const auto& name = columns_[index].name;
-        if (name.empty()) {
-            throw SchemaError("column name cannot be empty");
-        }
+    for (std::size_t i{0}; i < columns_.size(); ++i) {
+        const auto& column{columns_[i]};
+        column.validate();
+        const auto id{i};
+        const auto& name{columns_[i].name};
         if (!nameToId_.emplace(name, id).second) {
-            throw SchemaError("duplicate column name: " + name);
+            throw SchemaError{"duplicate column name: " + name};
         }
     }
 }
 
+// Return the schema columns in declaration order.
 const std::vector<Column>& Schema::columns() const {
     return columns_;
 }
 
-const Column& Schema::column(ColumnId id) const {
-    const auto index = static_cast<std::size_t>(id);
-    if (index >= columns_.size()) {
-        throw SchemaError("ColumnId " + std::to_string(id) + " is out of range");
+// Return a column by ID or name, rejecting missing columns.
+const Column& Schema::column(std::size_t id) const {
+    if (id >= columns_.size()) {
+        throw SchemaError{"column index " + std::to_string(id) + " is out of range"};
     }
-    return columns_[index];
+    return columns_[id];
 }
 
+// Return a column by ID or name, rejecting missing columns.
 const Column& Schema::column(std::string_view name) const {
-    const auto id = columnId(name);
+    const auto id{columnId(name)};
     if (!id) {
-        throw SchemaError("unknown column: " + std::string(name));
+        throw SchemaError{"unknown column: " + std::string{name}};
     }
     return column(*id);
 }
 
+// Return the number of columns in the schema.
 std::size_t Schema::size() const {
     return columns_.size();
 }
 
+// Return whether the schema contains no columns.
 bool Schema::empty() const {
     return columns_.empty();
 }
 
+// Return whether the schema contains the given column name.
 bool Schema::hasColumn(std::string_view name) const {
     return columnId(name).has_value();
 }
 
-std::optional<ColumnId> Schema::columnId(std::string_view name) const {
-    const auto found = nameToId_.find(std::string(name));
+// Resolve a column name to its ID, or return no value if absent.
+std::optional<std::size_t> Schema::columnId(std::string_view name) const {
+    const auto found{nameToId_.find(std::string{name})};
     if (found == nameToId_.end()) {
         return std::nullopt;
     }
     return found->second;
 }
 
-void Schema::validateValue(ColumnId columnId, const Value& value) const {
-    const auto& expectedColumn = column(columnId);
-    const bool correctType =
-        (isInteger(expectedColumn.type) && std::holds_alternative<std::int64_t>(value)) ||
-        (isText(expectedColumn.type) && std::holds_alternative<std::string>(value)) ||
-        (isVector(expectedColumn.type) && std::holds_alternative<VectorValue>(value));
+// Check that a cell matches its column type and vector dimension.
+void Schema::validateCell(std::size_t columnId, const Cell& cell) const {
+    const auto& expectedColumn{column(columnId)};
+
+    const auto actualType{cellTypeName(cell)};
+    const bool correctType{expectedColumn.type == actualType};
 
     if (!correctType) {
-        throw SchemaError(
+        throw SchemaError{
             "column '" + expectedColumn.name + "' expects " +
-            std::string(dataTypeName(expectedColumn.type)) + " but received " +
-            std::string(valueTypeName(value)));
+            std::string{dataTypeName(expectedColumn.type)} + " but received " +
+            std::string{dataTypeName(actualType)}};
     }
 
     if (isVector(expectedColumn.type)) {
-        const auto expectedDimension = std::get<VectorType>(expectedColumn.type).dimension();
-        const auto receivedDimension = std::get<VectorValue>(value).size();
+        const auto expectedDimension{expectedColumn.vectorDimension};
+        const auto receivedDimension{std::get<std::vector<float>>(cell).size()};
         if (expectedDimension != receivedDimension) {
-            throw SchemaError(
+            throw SchemaError{
                 "vector column '" + expectedColumn.name + "' expects dimension " +
                 std::to_string(expectedDimension) + " but received " +
-                std::to_string(receivedDimension));
+                std::to_string(receivedDimension)};
         }
     }
 }
 
+// Check row width and validate each cell against the schema.
 void Schema::validateRow(const Row& row) const {
     if (row.size() != size()) {
-        throw SchemaError(
-            "row expects " + std::to_string(size()) + " values but received " +
-            std::to_string(row.size()));
+        throw SchemaError{
+            "row expects " + std::to_string(size()) + " cells but received " +
+            std::to_string(row.size())};
     }
 
-    for (std::size_t index = 0; index < size(); ++index) {
-        const auto id = static_cast<ColumnId>(index);
-        validateValue(id, row.value(id));
+    for (std::size_t i{0}; i < size(); ++i) {
+        validateCell(i, row.cell(i));
     }
 }
 

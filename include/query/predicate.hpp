@@ -1,6 +1,6 @@
 #pragma once
 
-#include "vector/distance.h"
+#include "vector/distance.hpp"
 
 #include <cstdint>
 #include <string>
@@ -35,22 +35,29 @@ struct VectorPredicate {
     DistanceMetric metric;
     std::vector<float> referenceVector;
     ComparisonOperator op;
-    float threshold;
+    double threshold;
 };
 
 using Predicate = std::variant<IntegerPredicate, TextPredicate, VectorPredicate>;
 
+// Build an integer comparison predicate for a named column.
 Predicate integerComparison(std::string column, ComparisonOperator op, int64_t value);
+// Build a text comparison predicate for a named column.
 Predicate textComparison(std::string column, ComparisonOperator op, std::string value);
+// Build a vector-distance predicate with a reference vector and threshold.
 Predicate vectorDistance(std::string column,
                          DistanceMetric metric,
                          std::vector<float> referenceVector,
                          ComparisonOperator op,
-                         float threshold);
-Predicate vectorDistanceLessThan(std::string column, std::vector<float> referenceVector, float threshold);
+                         double threshold);
+// Build a Euclidean-distance predicate with a strict upper threshold.
+Predicate vectorDistanceLessThan(std::string column, std::vector<float> referenceVector, double threshold);
 
+// Evaluate an integer comparison using the requested operator.
 bool evaluateIntegerComparison(int64_t left, ComparisonOperator op, int64_t right);
+// Evaluate a lexicographic text comparison using the requested operator.
 bool evaluateTextComparison(const std::string& left, ComparisonOperator op, const std::string& right);
-bool evaluateFloatComparison(float left, ComparisonOperator op, float right);
+// Evaluate a floating-point comparison using the requested operator.
+bool evaluateFloatComparison(double left, ComparisonOperator op, double right);
 
 } // namespace vrdb
