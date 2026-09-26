@@ -9,9 +9,9 @@ namespace vrdb {
 // Return the stored type name or reject an unknown column type.
 std::string_view columnTypeName(ColumnType type) {
     switch (type) {
-    case ColumnType::INTEGER: return "INTEGER";
-    case ColumnType::TEXT: return "TEXT";
-    case ColumnType::VECTOR: return "VECTOR";
+        case ColumnType::INTEGER: return "INTEGER";
+        case ColumnType::TEXT: return "TEXT";
+        case ColumnType::VECTOR: return "VECTOR";
     }
     throw SchemaError{"unknown column type"};
 }
@@ -33,6 +33,10 @@ void Column::validate() const {
     }
     if (name.empty()) {
         throw SchemaError{"column name cannot be empty"};
+    }
+    constexpr std::string_view allowed{"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_0123456789"};
+    if (name.find_first_not_of(allowed) != std::string::npos) {
+        throw SchemaError{"column name allows only ASCII letters, digits, and underscores"};
     }
 }
 

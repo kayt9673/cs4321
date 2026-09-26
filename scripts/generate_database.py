@@ -20,7 +20,7 @@ HEADER = b'"id","title","embedding"\n'
 
 # Encode one synthetic CSV row, optionally padding its title to fill the target size.
 def row_bytes(document_id, embedding, padding=0):
-    title = f"document-{document_id:012d}".ljust(128, "x") + "x" * padding
+    title = f"document_{document_id:012d}".ljust(128, "x") + "x" * padding
     return f'"{document_id:012d}","{title}","{embedding}"\n'.encode("ascii")
 
 

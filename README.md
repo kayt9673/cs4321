@@ -76,7 +76,7 @@ my_database/
 dimensions. Each table CSV has a leading `__vrdb_row_id` physical column,
 then the logical schema columns. A small `.nextid` sidecar records the next
 internal ID so deleting the newest row cannot cause ID reuse. TEXT
-values use CSV quote escaping, including embedded commas, quotes, and newlines.
+values contain only ASCII letters, digits, and underscores; empty strings are allowed.
 A vector is stored in one CSV field such as `"[0.1,-0.2,0.3]"`.
 
 The current storage is row-oriented because inserts and queries operate on

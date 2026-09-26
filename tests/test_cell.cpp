@@ -15,7 +15,7 @@ int main() {
     static_assert(std::is_same_v<Cell, std::variant<std::int64_t, std::string, std::vector<double>>>);
 
     const Cell integer{std::int64_t{7}};
-    const Cell text{std::string{"hello, \"world\"\n"}};
+    const Cell text{std::string{"hello_World_0123456789"}};
     const Cell vector{std::vector<double>{1.25, -2.5}};
     auto copy{vector};
     std::get<std::vector<double>>(copy)[0] = 99.0;
@@ -72,10 +72,69 @@ int main() {
     assert(readCsvRecord(csv, fields));
     assert(deserializeRowFromCsv(fields, schema).cells() == row.cells());
 
+    // Valid TEXT values contain only ASCII letters, digits, and underscores.
+    // Empty TEXT values remain valid, including the final field in a record.
+    std::stringstream records{};
+    writeCsvRecord(records, {"", "plain", "Alpha_012", ""});
+    writeCsvRecord(records, {"next"});
+    writeCsvRecord(records, {""});
+    assert(readCsvRecord(records, fields));
+    assert((fields == std::vector<std::string>{"", "plain", "Alpha_012", ""}));
+    assert(readCsvRecord(records, fields));
+    assert((fields == std::vector<std::string>{"next"}));
+    assert(readCsvRecord(records, fields));
+    assert((fields == std::vector<std::string>{""}));
+    assert(!readCsvRecord(records, fields));
+    assert(fields.empty());
+
+    // Consume both CRLF characters and preserve a final record without a newline.
+    std::stringstream endings{"\"first\"\r\n\"second\"\r\"\""};
+    for (const auto expected : {"first", "second", ""}) {
+        assert(readCsvRecord(endings, fields));
+        assert((fields == std::vector<std::string>{expected}));
+    }
+    assert(!readCsvRecord(endings, fields));
+
+    for (const auto invalid : {"a b", "a,b", "a\"b", "a\nb", "a\rb", "a\tb", "a-b", "é"}) {
+        bool rejected{false};
+        try {
+            schema.validateRow(Row{{integer, std::string{invalid}, vector}});
+        } catch (const SchemaError&) {
+            rejected = true;
+        }
+        assert(rejected);
+        rejected = false;
+        try {
+            deserializeRowFromCsv({"7", invalid, "[1.25,-2.5]"}, schema);
+        } catch (const SchemaError&) {
+            rejected = true;
+        }
+        assert(rejected);
+    }
+
+    // Fields written by writeCsvRecord can contain commas, quotes, and newlines.
+    const std::vector<std::string> unrestrictedFields{
+        "plain", "comma,value", "say \"hi\"", "line1\nline2", ""};
+    std::stringstream unrestricted{};
+    writeCsvRecord(unrestricted, unrestrictedFields);
+    assert(readCsvRecord(unrestricted, fields));
+    assert(fields == unrestrictedFields);
+
+    for (const auto malformed : {"\"unfinished", "plain", "un\"quoted", "\"closed\"extra", "junk\"abc\""}) {
+        std::stringstream input{malformed};
+        bool rejected{false};
+        try {
+            readCsvRecord(input, fields);
+        } catch (const StorageError&) {
+            rejected = true;
+        }
+        assert(rejected);
+    }
+
     // Existing CSV encodings decode into the cells unchanged.
-    const auto legacy{deserializeRowFromCsv({"7", "legacy text", "[1.25,-2.5]"}, schema)};
+    const auto legacy{deserializeRowFromCsv({"7", "legacy_text", "[1.25,-2.5]"}, schema)};
     assert(std::get<std::int64_t>(legacy.cell(0)) == 7);
-    assert(std::get<std::string>(legacy.cell(1)) == "legacy text");
+    assert(std::get<std::string>(legacy.cell(1)) == "legacy_text");
     assert(std::get<std::vector<double>>(legacy.cell(2)) == std::get<std::vector<double>>(vector));
     const auto column{deserializeColumn("embedding", "VECTOR", "2")};
     assert(column.type == ColumnType::VECTOR && column.vectorDimension == 2);

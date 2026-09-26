@@ -68,6 +68,14 @@ int main() {
         [] { static_cast<void>(Column{"", ColumnType::INTEGER}); },
         "column name cannot be empty");
 
+    const std::string allowed{"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_0123456789"};
+    assert((Column{allowed, ColumnType::TEXT}.name == allowed));
+    for (const auto invalid : {"has space", "has,comma", "has\"quote", "has\nnewline", "has-hyphen", "é"}) {
+        expectSchemaError(
+            [invalid] { static_cast<void>(Column{invalid, ColumnType::TEXT}); },
+            "allows only ASCII letters, digits, and underscores");
+    }
+
     const Schema caseSensitiveSchema{{
         Column{"Embedding", ColumnType::VECTOR, 1},
         Column{"embedding", ColumnType::VECTOR, 1},

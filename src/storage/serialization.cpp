@@ -11,12 +11,6 @@
 namespace vrdb {
 namespace {
 
-// Append the current CSV field and clear its buffer.
-void finishRecord(std::vector<std::string>& fields, std::string& field) {
-    fields.push_back(std::move(field));
-    field.clear();
-}
-
 // Parse a floating-point coordinate and reject trailing input.
 double parseFloat(const std::string& field, const std::string& columnName) {
     try {
@@ -88,75 +82,53 @@ void writeCsvRecord(std::ostream& output, const std::vector<std::string>& fields
 
 // Read one CSV record, returning false at EOF and rejecting malformed quotes.
 bool readCsvRecord(std::istream& input, std::vector<std::string>& fields) {
-    enum class State {
-        FIELD_START,
-        UNQUOTED,
-        QUOTED,
-        AFTER_QUOTE
-    };
-
-    fields.clear();
     std::string field{};
-    State state{State::FIELD_START};
-    bool readAnything{false};
-    char character{'\0'};
-
-    while (input.get(character)) {
-        readAnything = true;
-
-        if (state == State::QUOTED) {
-            if (character == '"') {
-                if (input.peek() == '"') {
-                    input.get(character);
-                    field.push_back('"');
-                } else {
-                    state = State::AFTER_QUOTE;
-                }
-            } else {
-                field.push_back(character);
-            }
-            continue;
-        }
-
-        const bool recordEnd{character == '\n' || character == '\r'};
-        if (recordEnd) {
-            if (character == '\r' && input.peek() == '\n') {
-                input.get(character);
-            }
-            finishRecord(fields, field);
-            return true;
-        }
-
-        if (state == State::AFTER_QUOTE) {
-            if (character != ',') {
-                throw StorageError{"malformed CSV record: unexpected character after closing quote"};
-            }
-            finishRecord(fields, field);
-            state = State::FIELD_START;
-            continue;
-        }
-
-        if (character == ',') {
-            finishRecord(fields, field);
-            state = State::FIELD_START;
-        } else if (character == '"') {
-            if (state != State::FIELD_START) {
-                throw StorageError{"malformed CSV record: quote inside unquoted field"};
-            }
-            state = State::QUOTED;
-        } else {
-            field.push_back(character);
-            state = State::UNQUOTED;
-        }
-    }
-
-    if (!readAnything) {
+    fields.clear();
+    if (input.peek() == std::istream::traits_type::eof()) {
         return false;
     }
-    if (state == State::QUOTED) {
-        throw StorageError{"malformed CSV record: unterminated quoted field"};
+    bool insideQuotes{false};
+    while (input.peek() != std::istream::traits_type::eof() &&
+           (insideQuotes || (input.peek() != '\n' && input.peek() != '\r'))) {
+        const auto character{input.get()};
+        if (character == '"') {
+            auto next{input.peek()}; // used to check for escaped quotes and closing quotes
+            if (insideQuotes && next == '"') { // escaped quote
+                field.push_back('"');
+                input.get(); // remove the escaped quote from the buffer
+            } else if (insideQuotes) { // closing quote
+                fields.push_back(std::move(field));
+                field.clear();
+                if (next == ',') {
+                    input.get(); // remove the separator from the buffer
+                    next = input.peek(); // check the next character after the separator
+                    if (next != '"') {
+                        throw StorageError{"malformed CSV record: expected quoted field after comma"};
+                    }
+                } else if (next != '\n' && next != '\r' && next != std::istream::traits_type::eof()) {
+                    throw StorageError{"malformed CSV record: unexpected character after closing quote"};
+                }
+                insideQuotes = false;
+            } else {
+                insideQuotes = true;
+            }
+        } else {
+            if (!insideQuotes) {
+                throw StorageError{"malformed CSV record: expected opening quote"};
+            }
+            field.push_back(static_cast<char>(character));
+        }
     }
-    finishRecord(fields, field);
+    if (insideQuotes) {
+        throw StorageError{"malformed CSV record: missing closing quote"};
+    }
+    if (input.peek() == '\r') {
+        input.get();
+    }
+    if (input.peek() == '\n') {
+        input.get();
+    }
+
     return true;
 }
 
@@ -227,7 +199,9 @@ Row deserializeRowFromCsv(const std::vector<std::string>& fields, const Schema& 
         cells.push_back(deserializeCellFromCsv(fields[index], schema.column(index)));
     }
 
-    return Row{std::move(cells)};
+    Row row{std::move(cells)};
+    schema.validateRow(row);
+    return row;
 }
 
 // Return the vector dimension as text, or an empty string for other types.

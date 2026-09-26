@@ -120,7 +120,7 @@ int main() {
     }});
     schema.validateRow(Row{{
         std::int64_t{0},
-        std::string{"zero vector"},
+        std::string{"zero_vector"},
         std::vector<double>{0.0, 0.0, 0.0},
     }});
 

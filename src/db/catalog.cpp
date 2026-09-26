@@ -38,7 +38,7 @@ Catalog::Catalog(std::filesystem::path databasePath)
 }
 
 // Require a nonempty ASCII identifier safe for use as a table filename.
-void Catalog::validateTableName(const std::string& name) {
+void Catalog::validateString(const std::string& name) {
     if (name.empty()) {
         throw DatabaseError{"table name cannot be empty"};
     }
@@ -63,8 +63,9 @@ void Catalog::load() {
         if (!entry.is_regular_file() || entry.path().extension() != ".csv") {
             continue;
         }
+        // acquire the table name from the catalog filepath and validate it
         const auto tableName{entry.path().stem().string()};
-        validateTableName(tableName);
+        validateString(tableName);
         std::ifstream file{entry.path()};
         if (!file) {
             throw StorageError{"unable to read catalog for table: " + tableName};
@@ -105,7 +106,7 @@ void Catalog::load() {
 
 // Register a table schema and write only its catalog.
 void Catalog::createTable(const std::string& name, const Schema& schema) {
-    validateTableName(name);
+    validateString(name);
     if (hasTable(name)) {
         throw DatabaseError{"table already exists: " + name};
     }

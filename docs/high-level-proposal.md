@@ -120,14 +120,14 @@ A parameterized type where `n` is the dimension. Different vector columns may ha
 
 ### **`TEXT`**
 
-Text must support empty strings and characters that have special meaning in the underlying storage format.
+Text supports empty strings and ASCII letters, digits, and underscores only.
 
 | Property | Definition |
 | ----- | ----- |
 | Representation | Variable-length string |
 | Equality | `=`, `!=` |
 | Ordering | Not initially supported |
-| Example | `"database systems"` |
+| Example | `"database_systems"` |
 
 ## **Row**
 

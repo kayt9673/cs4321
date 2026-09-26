@@ -86,6 +86,13 @@ void Schema::validateCell(std::size_t columnId, const Cell& cell) const {
             std::string{cellTypeName(cell)}};
     }
 
+    if (isText(expectedColumn.type)) {
+        constexpr std::string_view allowed{"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_0123456789"};
+        if (std::get<std::string>(cell).find_first_not_of(allowed) != std::string::npos) {
+            throw SchemaError{"TEXT column '" + expectedColumn.name + "' allows only ASCII letters, digits, and underscores"};
+        }
+    }
+
     if (isVector(expectedColumn.type)) {
         const auto expectedDimension{expectedColumn.vectorDimension};
         const auto receivedDimension{std::get<std::vector<double>>(cell).size()};

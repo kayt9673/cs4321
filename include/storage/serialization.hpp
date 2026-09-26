@@ -14,7 +14,7 @@ namespace vrdb {
 
 // Write one CSV record with quoted fields and escaped quotes.
 void writeCsvRecord(std::ostream& output, const std::vector<std::string>& fields);
-// Read one CSV record, returning false at EOF and rejecting malformed quotes.
+// Read a record written by writeCsvRecord; return false only at initial EOF.
 bool readCsvRecord(std::istream& input, std::vector<std::string>& fields);
 
 // Encode a cell as text, preserving double precision in vectors.

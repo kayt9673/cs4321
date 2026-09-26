@@ -28,7 +28,7 @@ if(NOT EXISTS "${TEST_ROOT}/catalogs/documents.csv")
     message(FATAL_ERROR "create did not write the table catalog")
 endif()
 
-run_cli(insert documents 1 "hello, CSV" "[0.1,-0.2,0.3]")
+run_cli(insert documents 1 "hello_CSV" "[0.1,-0.2,0.3]")
 run_cli(list)
 if(NOT CLI_OUTPUT MATCHES "documents")
     message(FATAL_ERROR "reopened database did not list documents")
@@ -40,13 +40,13 @@ if(NOT CLI_OUTPUT MATCHES "embedding +\\| VECTOR\\(3\\)")
 endif()
 
 run_cli(select documents)
-if(NOT CLI_OUTPUT MATCHES "hello, CSV")
+if(NOT CLI_OUTPUT MATCHES "hello_CSV")
     message(FATAL_ERROR "reopened database did not restore inserted row")
 endif()
 
 run_cli(select documents --csv)
 if(NOT CLI_OUTPUT MATCHES "\"id\",\"title\",\"embedding\"" OR
-   NOT CLI_OUTPUT MATCHES "\"1\",\"hello, CSV\"")
+   NOT CLI_OUTPUT MATCHES "\"1\",\"hello_CSV\"")
     message(FATAL_ERROR "CSV output does not match logical table columns")
 endif()
 

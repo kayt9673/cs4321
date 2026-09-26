@@ -15,7 +15,7 @@ public:
     explicit Catalog(std::filesystem::path databasePath);
 
     // Require a nonempty ASCII identifier safe for use as a table filename.
-    static void validateTableName(const std::string& name);
+    static void validateString(const std::string& name);
 
     // Load each table schema from its own catalog file.
     void load();

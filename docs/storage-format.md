@@ -19,7 +19,8 @@ reloads schemas from the catalog and rows from each table CSV.
 
 Table names are case-sensitive identifiers. They contain only letters, digits,
 and underscores, and the first character must be a letter or underscore. This
-keeps table names safe to use as file names.
+keeps table names safe to use as file names. Column names are nonempty and
+contain only ASCII letters, digits, and underscores.
 
 ## Table Catalogs
 
@@ -51,14 +52,16 @@ column names in schema order. Remaining records contain row cells in the same
 order.
 
 - INTEGER is stored as a base-10 signed integer.
-- TEXT is stored as the logical text value using CSV quote escaping.
+- TEXT contains only `ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_0123456789`.
+  Empty strings are allowed; spaces, punctuation, quotes, newlines, and non-ASCII
+  characters are rejected during row validation, including when loading rows.
 - VECTOR is stored as one field in bracket notation, for example
   `[0.1,-0.2,0.3]`.
 
-The writer quotes every CSV field and doubles embedded quote characters. The
-reader accepts quoted or unquoted fields and supports embedded commas, quotes,
-CR/LF characters, and empty strings. On read, the table header, row width,
-value types, and vector dimensions are checked against the catalog schema.
+The writer quotes every CSV field. Vector fields may contain commas, brackets,
+and numeric punctuation; the TEXT character restriction does not apply to vector
+encodings. On read, the table header, row width, value types, TEXT characters,
+and vector dimensions are checked against the catalog schema.
 
 ## Deliberate Limitations
 

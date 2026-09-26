@@ -51,7 +51,7 @@ int main() {
     const auto originalPath{temporary.path / "original"};
     const auto replacedPath{temporary.path / "replaced"};
     const auto reusedPath{temporary.path / "reused"};
-    const std::string text{std::string(65536, 'x') + "|, % \"quoted\"\n"};
+    const std::string text{std::string(65536, 'x') + "_ABC_0123456789"};
     const std::vector<double> embedding(4096, 1.25);
     const Schema schema{{
         Column{"id", ColumnType::INTEGER},
