@@ -8,17 +8,21 @@ namespace vrdb {
 
 // Open database storage and load the persisted catalog.
 DatabaseManager::DatabaseManager(const std::filesystem::path& storagePath)
-    : catalog_{storagePath},
-      storage_{storagePath / "tables"} {
-    catalog_.load();
+    : storage_{storagePath} {
+    catalog_.load(storage_);
 }
 
 // Create a table and persist its schema and storage.
-void DatabaseManager::createTable(const std::string& name, const Schema& schema) {    
+void DatabaseManager::createTable(const std::string& name, const Schema& schema) {
+    Catalog::validateString(name);
+    if (catalog_.hasTable(name)) {
+        throw DatabaseError{"table already exists: " + name};
+    }
+    storage_.createTable(name, schema);
     try {
-        catalog_.createTable(name, schema);
-        storage_.createTable(name, schema);
+        catalog_.createTable(name, schema, storage_);
     } catch (...) {
+        storage_.dropTable(name);
         throw;
     }
 }
@@ -29,13 +33,27 @@ void DatabaseManager::dropTable(const std::string& name) {
         throw DatabaseError{"unknown table: " + name};
     }
     storage_.dropTable(name);
-    catalog_.dropTable(name);
+    catalog_.dropTable(name, storage_);
 }
 
 // Validate and append a row to the named table.
-void DatabaseManager::insert(const std::string& tableName, const Row& row) {
+RowId DatabaseManager::insert(const std::string& tableName, const Row& row) {
     const auto& schema{catalog_.getSchema(tableName)};
-    storage_.appendRow(tableName, schema, row);
+    return storage_.appendRow(tableName, schema, row);
+}
+
+void DatabaseManager::update(const std::string& tableName, RowId id, const Row& row) {
+    const auto& schema{catalog_.getSchema(tableName)};
+    if (!storage_.updateRow(tableName, schema, id, row)) {
+        throw DatabaseError{"unknown RowId " + std::to_string(id) + " in table " + tableName};
+    }
+}
+
+void DatabaseManager::erase(const std::string& tableName, RowId id) {
+    const auto& schema{catalog_.getSchema(tableName)};
+    if (!storage_.deleteRow(tableName, schema, id)) {
+        throw DatabaseError{"unknown RowId " + std::to_string(id) + " in table " + tableName};
+    }
 }
 
 // Read a table and execute the requested query against its rows.

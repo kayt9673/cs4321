@@ -10,18 +10,20 @@ transactions, joins, or an external database dependency yet.
 
 ## Current Architecture
 
-- `Database`: top-level API for creating tables and inserting, updating,
+- `DatabaseManager`: top-level API for creating tables and inserting, updating,
   deleting, and reading persisted rows.
-- `Catalog`: persistent table metadata store used to reload table names and
-  schemas when the database opens.
-- `StorageEngine`: persistence abstraction. `FileStorageEngine` stores one
-  RFC 4180-style CSV file per table under the database directory's `tables/`
-  subdirectory.
-- `storage/serialization`: CSV record, row-value, vector, and data-type encoding
-  shared by the catalog and file storage layers.
-- `Schema`, `Column`, `Row`, and `Value`: strongly validated logical data model.
-  `DataType` is a variant of `Int64Type`, `TextType`, and `VectorType`, so only
-  vector columns can carry a dimension.
+- `Catalog`: table names and schemas, persisted through the `StorageEngine`
+  interface. It does not know file paths or CSV layout.
+- `StorageEngine`: the interface for row and schema persistence.
+- `FileStorageEngine`: the current file backend. It manages the database's
+  `tables/` and `catalogs/` directories, row mutations, and file replacement.
+- `CsvFormat`: encodes tables, schemas, and ID counters using input/output
+  streams. `FileStorageEngine` owns a format object and calls it for encoding.
+- `storage/serialization`: the existing CSV record, cell, vector, and data-type
+  helpers used by `CsvFormat` and CLI output.
+- `Schema`, `Column`, `Row`, and `Cell`: validated logical data model.
+  `DataType` is an enum; `Column` carries a positive vector dimension only for
+  `VECTOR` columns.
 - Column indices use `std::size_t` and schemas resolve names to indices through
   a map; `StoredRow` keeps physical identity separate from logical values.
   `QueryResult::rowIds` corresponds positionally to its rows.
@@ -31,11 +33,17 @@ transactions, joins, or an external database dependency yet.
 - `vector/distance`: Euclidean and cosine distance utilities with dimension
   validation.
 
+`DatabaseManager` selects `FileStorageEngine` as the default backend for this
+milestone. A future backend implements `StorageEngine`; catalog and query logic
+need not know its physical format. `Catalog` receives the storage interface for
+each persistence operation, so moving a database does not leave it referring to
+another object's storage. CSV remains a simple, inspectable development format.
+
 ## Milestone 1 Functionality
 
 - Database startup creates the database directory, initializes file storage
   under `tables/`, initializes `Catalog`, and loads existing table metadata.
-- Table metadata is persisted in `catalog.csv`; table row files alone do not
+- Table metadata is persisted in `catalogs/<table>.csv`; table row files alone do not
   define recognized tables.
 - Supported column/value types are `INTEGER` (`int64_t`), `TEXT`
   (`std::string`), and `VECTOR(n)` (`std::vector<float>`).
@@ -61,22 +69,24 @@ transactions, joins, or an external database dependency yet.
 
 ## Database Directory Layout
 
-Opening `Database("./my_database")` creates or reopens this layout:
+Opening `DatabaseManager{"./my_database"}` creates or reopens this layout:
 
 ```text
 my_database/
-├── catalog.csv
+├── catalogs/
+│   ├── documents.csv
+│   └── reviews.csv
 └── tables/
     ├── documents.csv
     ├── documents.nextid
     └── reviews.csv
 ```
 
-`catalog.csv` stores table names, column order, logical types, and vector
+Each catalog CSV stores its table name, column order, logical types, and vector
 dimensions. Each table CSV has a leading `__vrdb_row_id` physical column,
 then the logical schema columns. A small `.nextid` sidecar records the next
 internal ID so deleting the newest row cannot cause ID reuse. TEXT
-values contain only ASCII letters, digits, and underscores; empty strings are allowed.
+values may contain spaces, punctuation, and newlines; empty strings are allowed.
 A vector is stored in one CSV field such as `"[0.1,-0.2,0.3]"`.
 
 The current storage is row-oriented because inserts and queries operate on

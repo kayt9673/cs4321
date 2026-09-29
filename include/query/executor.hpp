@@ -12,7 +12,7 @@ namespace vrdb {
 class QueryExecutor {
 public:
     // Filter rows, then apply offset, projection, and limit in input order.
-    QueryResult execute(const Query& query, const Schema& schema, const std::vector<Row>& rows) const;
+    QueryResult execute(const Query& query, const Schema& schema, const std::vector<StoredRow>& rows) const;
 
 private:
     // Evaluate one typed predicate against a row cell.
