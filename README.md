@@ -50,9 +50,9 @@ another object's storage. CSV remains a simple, inspectable development format.
 - Schemas preserve column order, require at least one column, require unique
   non-empty column names, and require vector dimensions only for vector columns.
 - Rows are validated against schemas for width, type, and vector dimension.
-- Inserts validate rows and return a persistent `RowId`. `update(table, id, row)`
-  replaces a whole logical row, and `erase(table, id)` removes it. Missing IDs
-  fail clearly; logical user columns named `id` do not determine `RowId`.
+- Inserts validate rows and return a persistent `RowId`. `update(table, rowId, row)`
+  replaces a whole logical row, and `erase(table, rowId)` removes it. Missing RowIds
+  fail clearly.
 - Queries are programmatic `Query` objects with table name, projection,
   predicates, optional limit, and offset.
 - Empty projection means all columns; non-empty projection returns a projected
@@ -108,14 +108,14 @@ cmake --build build
 ```sh
 ./build/vrdb_cli ./example_db init
 ./build/vrdb_cli ./example_db create documents \
-  id:INTEGER title:TEXT 'embedding:VECTOR(3)'
+  year:INTEGER title:TEXT 'embedding:VECTOR(3)'
 ./build/vrdb_cli ./example_db insert documents \
-  1 'vector databases' '[0.1,-0.2,0.3]'
+  2024 'vector databases' '[0.1,-0.2,0.3]'
 ./build/vrdb_cli ./example_db list
 ./build/vrdb_cli ./example_db describe documents
 ./build/vrdb_cli ./example_db select documents
 ./build/vrdb_cli ./example_db update documents 1 \
-  1 'updated title' '[0.2,0.1,0.3]'
+  2025 'updated title' '[0.2,0.1,0.3]'
 ./build/vrdb_cli ./example_db delete documents 1
 ./build/vrdb_cli ./example_db select documents --csv
 ```
@@ -124,6 +124,10 @@ Every invocation reopens the database from disk, so the latter commands also
 exercise catalog and row recovery. `insert` prints the allocated `RowId`;
 `select` displays it with the rows in a bordered table. `update` replaces all
 values in one row, in schema order, and `delete` removes one row by `RowId`.
+For a fresh database, the first insert returns RowId `1`, which the update and
+delete commands above use. The `year` value is ordinary row data; `RowId` is
+stored as `__vrdb_row_id` in the table CSV and displayed as `row_id` by the CLI.
+
 On a terminal, headings and status messages use ANSI colors; colors are disabled
 when output is redirected, `NO_COLOR` is set, or `TERM=dumb`. `select --csv`
 emits machine-readable CSV (including `row_id`) without table decoration.
