@@ -1,8 +1,8 @@
 # **Milestone 1 Design**
 
 > **Implementation update:** The current implementation uses a direct `Cell` variant
-> for mixed-type rows, and `ColumnType` with validated
-> vector dimensions. It retains `ColumnId`, schema-owned row validation,
+> for mixed-type rows, and a `DataType` enum with validated
+> vector dimensions. Column indices use `std::size_t`; schema owns row validation,
 > and the CSV directory format documented in [storage-format.md](storage-format.md).
 > Code snippets below are historical proposal material; see the README for the
 > current C++ API.

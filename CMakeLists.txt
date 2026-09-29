@@ -17,6 +17,7 @@ add_library(vrdb
     src/types/schema.cpp
     src/types/row.cpp
     src/storage/serialization.cpp
+    src/storage/csv_format.cpp
     src/storage/file_storage_engine.cpp
     src/query/executor.cpp
     src/vector/distance.cpp
@@ -48,6 +49,14 @@ endif()
 add_executable(test_storage tests/test_storage.cpp)
 target_link_libraries(test_storage PRIVATE vrdb)
 add_test(NAME storage COMMAND test_storage)
+
+add_executable(test_catalog tests/test_catalog.cpp)
+target_link_libraries(test_catalog PRIVATE vrdb)
+add_test(NAME catalog COMMAND test_catalog)
+
+add_executable(test_csv_format tests/test_csv_format.cpp)
+target_link_libraries(test_csv_format PRIVATE vrdb)
+add_test(NAME csv_format COMMAND test_csv_format)
 
 add_executable(test_database_ownership tests/test_database_ownership.cpp)
 target_link_libraries(test_database_ownership PRIVATE vrdb)

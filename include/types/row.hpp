@@ -3,9 +3,12 @@
 #include "types/cell.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 
 namespace vrdb {
+
+using RowId = std::uint64_t;
 
 class Row {
 public:
@@ -23,5 +26,9 @@ private:
     std::vector<Cell> cells_;
 };
 
+struct StoredRow {
+    RowId id;
+    Row row;
+};
 
 } // namespace vrdb

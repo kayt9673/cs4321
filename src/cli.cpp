@@ -30,6 +30,8 @@ void printUsage(std::ostream& output) {
         << "  vrdb_cli <database-directory> describe <table>\n"
         << "  vrdb_cli <database-directory> create <table> <column:type>...\n"
         << "  vrdb_cli <database-directory> insert <table> <value>...\n"
+        << "  vrdb_cli <database-directory> update <table> <row-id> <value>...\n"
+        << "  vrdb_cli <database-directory> delete <table> <row-id>\n"
         << "  vrdb_cli <database-directory> select <table> [--csv]\n\n"
         << "Column types: INTEGER, TEXT, VECTOR(n)\n"
         << "Vector cells: [0.1,0.2,0.3]\n";
@@ -59,6 +61,14 @@ std::size_t parseSize(const std::string& value, const std::string& description) 
     } catch (const std::exception&) {
         throw std::invalid_argument{"invalid " + description + ": " + value};
     }
+}
+
+vrdb::RowId parseRowId(const std::string& value) {
+    const auto id{parseSize(value, "RowId")};
+    if (id == 0) {
+        throw std::invalid_argument{"RowId must be positive"};
+    }
+    return static_cast<vrdb::RowId>(id);
 }
 
 // Parse a name:type argument into a validated column definition.
@@ -272,15 +282,17 @@ void printSchema(const vrdb::Schema& schema) {
 
 // Print result cells as CSV or an aligned table.
 void printQueryResult(const vrdb::QueryResult& result, bool csv) {
-    std::vector<std::string> header{};
-    header.reserve(result.schema.size());
+    std::vector<std::string> header{"row_id"};
+    header.reserve(result.schema.size() + 1);
     for (const auto& column : result.schema.columns()) {
         header.push_back(column.name);
     }
     std::vector<std::vector<std::string>> rows{};
     rows.reserve(result.rows.size());
-    for (const auto& row : result.rows) {
-        rows.push_back(vrdb::serializeRowForCsv(row));
+    for (std::size_t index{0}; index < result.rows.size(); ++index) {
+        auto fields{vrdb::serializeRowForCsv(result.rows[index])};
+        fields.insert(fields.begin(), std::to_string(result.rowIds[index]));
+        rows.push_back(std::move(fields));
     }
     if (csv) {
         vrdb::writeCsvRecord(std::cout, header);
@@ -350,8 +362,29 @@ int main(int argc, char** argv) {
                 throw std::invalid_argument{"insert requires a table name"};
             }
             const auto& schema = database.getSchema(argv[3]);
-            database.insert(argv[3], parseRowValues(schema, argc, argv, 4, "insert"));
-            printSuccess("Inserted 1 row into " + std::string{argv[3]});
+            const auto id{database.insert(argv[3], parseRowValues(schema, argc, argv, 4, "insert"))};
+            printSuccess("Inserted row " + std::to_string(id) + " into " + argv[3]);
+            return 0;
+        }
+
+        if (command == "update") {
+            if (argc < 5) {
+                throw std::invalid_argument{"update requires a table name and RowId"};
+            }
+            const auto& schema{database.getSchema(argv[3])};
+            const auto id{parseRowId(argv[4])};
+            database.update(argv[3], id, parseRowValues(schema, argc, argv, 5, "update"));
+            printSuccess("Updated row " + std::to_string(id) + " in " + argv[3]);
+            return 0;
+        }
+
+        if (command == "delete") {
+            if (argc != 5) {
+                throw std::invalid_argument{"delete requires a table name and RowId"};
+            }
+            const auto id{parseRowId(argv[4])};
+            database.erase(argv[3], id);
+            printSuccess("Deleted row " + std::to_string(id) + " from " + argv[3]);
             return 0;
         }
 

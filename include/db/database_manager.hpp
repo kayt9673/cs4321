@@ -27,7 +27,9 @@ public:
     // Remove a table from storage and the catalog.
     void dropTable(const std::string& name);
     // Validate and append a row to the named table.
-    void insert(const std::string& tableName, const Row& row);
+    RowId insert(const std::string& tableName, const Row& row);
+    void update(const std::string& tableName, RowId id, const Row& row);
+    void erase(const std::string& tableName, RowId id);
     // Read a table and execute the requested query against its rows.
     QueryResult select(const Query& query);
 

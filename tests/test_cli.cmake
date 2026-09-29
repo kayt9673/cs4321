@@ -29,6 +29,9 @@ if(NOT EXISTS "${TEST_ROOT}/catalogs/documents.csv")
 endif()
 
 run_cli(insert documents 1 "hello_CSV" "[0.1,-0.2,0.3]")
+if(NOT CLI_OUTPUT MATCHES "Inserted row 1")
+    message(FATAL_ERROR "insert did not report its RowId")
+endif()
 run_cli(list)
 if(NOT CLI_OUTPUT MATCHES "documents")
     message(FATAL_ERROR "reopened database did not list documents")
@@ -45,9 +48,26 @@ if(NOT CLI_OUTPUT MATCHES "hello_CSV")
 endif()
 
 run_cli(select documents --csv)
-if(NOT CLI_OUTPUT MATCHES "\"id\",\"title\",\"embedding\"" OR
-   NOT CLI_OUTPUT MATCHES "\"1\",\"hello_CSV\"")
+if(NOT CLI_OUTPUT MATCHES "\"row_id\",\"id\",\"title\",\"embedding\"" OR
+   NOT CLI_OUTPUT MATCHES "\"1\",\"1\",\"hello_CSV\"")
     message(FATAL_ERROR "CSV output does not match logical table columns")
+endif()
+
+run_cli(update documents 1 1 "updated" "[0.1,-0.2,0.3]")
+run_cli(select documents --csv)
+if(NOT CLI_OUTPUT MATCHES "\"1\",\"1\",\"updated\"")
+    message(FATAL_ERROR "update was not persisted")
+endif()
+
+run_cli(delete documents 1)
+run_cli(insert documents 1 "new" "[0.1,-0.2,0.3]")
+if(NOT CLI_OUTPUT MATCHES "Inserted row 2")
+    message(FATAL_ERROR "delete caused RowId reuse")
+endif()
+
+execute_process(COMMAND "${CLI}" "${TEST_ROOT}" delete documents 1 RESULT_VARIABLE missing_id)
+if(missing_id EQUAL 0)
+    message(FATAL_ERROR "delete accepted a missing RowId")
 endif()
 
 if(NOT EXISTS "${TEST_ROOT}/tables/documents.csv")

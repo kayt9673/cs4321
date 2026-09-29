@@ -55,11 +55,12 @@ class GeneratorTest(unittest.TestCase):
             selected = subprocess.run([CLI, str(destination), "select", "documents", "--csv"],
                                       check=True, capture_output=True, text=True)
             rows = list(csv.reader(io.StringIO(selected.stdout)))
-            self.assertEqual(rows[0], ["id", "title", "embedding"])
+            self.assertEqual(rows[0], ["row_id", "id", "title", "embedding"])
             self.assertEqual(len(rows), 3)
             for document_id, row in enumerate(rows[1:], 1):
                 self.assertEqual(int(row[0]), document_id)
-                self.assertEqual(len(row[2][1:-1].split(",")), 384)
+                self.assertEqual(int(row[1]), document_id)
+                self.assertEqual(len(row[3][1:-1].split(",")), 384)
 
             original = table.read_bytes()
             self.assertNotEqual(subprocess.run(command, capture_output=True).returncode, 0)
