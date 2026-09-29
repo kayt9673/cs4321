@@ -2,6 +2,7 @@
 
 #include "db/errors.hpp"
 
+#include <string_view>
 #include <utility>
 
 namespace vrdb {

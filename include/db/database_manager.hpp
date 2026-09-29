@@ -5,6 +5,7 @@
 #include "query/query.hpp"
 #include "storage/file_storage_engine.hpp"
 
+#include <cstddef>
 #include <filesystem>
 #include <string>
 #include <vector>

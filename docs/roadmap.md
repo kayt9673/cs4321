@@ -2,6 +2,9 @@
 
 A working checklist for the vector-relational database. 155 items across 17 phases.
 
+The checkboxes and progress totals predate later merges and have not been fully
+reconciled with the current code. See the README for supported functionality.
+
 **How to use this file**
 
 - Tick items by changing `- [ ]` to `- [x]`. GitHub renders these as checkboxes; ticking one is a normal commit and shows up in a diff.
@@ -400,9 +403,9 @@ Item **7** and item **132** are the same decision made twice, eleven phases apar
 
 ### Defects addressed from the original tree
 
-- **Catalog-backed startup is now present.** `Database` loads table names and schemas from per-table `catalogs/<table>.csv` files, and row data lives in one CSV file per table under the database directory's `tables/` subdirectory.
-- **A minimal CLI is now present.** `vrdb_cli` initializes or reopens a database, creates tables, inserts typed rows, lists and describes tables, and prints full-table scans as CSV. SQL parsing remains deferred.
-- **Queries now read persisted rows through `Database::select()`.** The executor takes a schema and row set, returning `QueryResult` with projection support instead of reading a separate in-memory `Table`.
+- **Catalog-backed startup is now present.** `DatabaseManager` loads table names and schemas from per-table `catalogs/<table>.csv` files. Each table has a CSV row file and a `.nextid` counter under `tables/`.
+- **A minimal CLI is now present.** `vrdb_cli` initializes or reopens a database, creates tables, inserts, updates, and deletes rows, lists and describes tables, and prints full-table scans or CSV. SQL parsing remains deferred.
+- **Queries now read persisted rows through `DatabaseManager::select()`.** The executor takes a schema and row set, returning `QueryResult` with projection support instead of reading a separate in-memory `Table`.
 
 ### Relation to the Phase 1 work split
 

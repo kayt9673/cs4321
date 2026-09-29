@@ -69,7 +69,7 @@ another object's storage. CSV remains a simple, inspectable development format.
 
 ## Database Directory Layout
 
-Opening `DatabaseManager{"./my_database"}` creates or reopens this layout:
+After creating `documents` and `reviews`, the database directory looks like this:
 
 ```text
 my_database/
@@ -79,7 +79,8 @@ my_database/
 └── tables/
     ├── documents.csv
     ├── documents.nextid
-    └── reviews.csv
+    ├── reviews.csv
+    └── reviews.nextid
 ```
 
 Each catalog CSV stores its table name, column order, logical types, and vector

@@ -2,8 +2,6 @@
 
 #include "db/errors.hpp"
 
-#include <utility>
-
 namespace vrdb {
 
 // Open database storage and load the persisted catalog.

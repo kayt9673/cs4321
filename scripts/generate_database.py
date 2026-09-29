@@ -3,7 +3,9 @@
 
 Size includes the header and rows in tables/documents.csv, excluding catalogs/documents.csv
 and filesystem overhead. One GB is 1,000,000,000 bytes.
-Rows have unique integer IDs, text, and deterministic 384-dimensional embeddings.
+Rows have unique INTEGER id values, text, and deterministic 384-dimensional
+embeddings. The table uses the legacy CSV header without internal RowIds or a
+.nextid file; its first mutation upgrades it to the current format.
 Only 256 distinct embeddings are used; this is a size/scan fixture, not a realistic
 similarity benchmark. Writes use bounded batches and never overwrite a database.
 """

@@ -21,7 +21,7 @@ database_directory/
 
 Constructing `DatabaseManager{path}` creates the database directory and empty `catalogs/` and
 `tables/` directories when they do not exist. Opening the same path later
-reloads schemas from the catalog and rows from each table CSV.
+reloads schemas from the catalogs; queries read rows from the table CSVs.
 
 Table names are case-sensitive identifiers. They contain only letters, digits,
 and underscores, and the first character must be a letter or underscore. This
@@ -55,8 +55,12 @@ remain in the old format until their first write.
 Each table is stored as one row-oriented CSV file. The first record contains
 `__vrdb_row_id` followed by the column names in schema order. Remaining records
 contain the RowId and row cells in the same order. The `.nextid` file prevents
-reuse of deleted IDs. Older table CSVs without RowIds remain readable and are
-upgraded on their first write.
+reuse of deleted IDs, which cannot always be inferred from the remaining rows.
+The counter is advanced before an append, so a failed append may leave an ID gap.
+Older table CSVs without RowIds remain readable and are upgraded on their first write.
+
+The synthetic database generator writes this older table format and does not
+create a `.nextid` file. Its first row mutation upgrades the table.
 
 - INTEGER is stored as a base-10 signed integer.
 - TEXT accepts empty strings, spaces, punctuation, quotes, and newlines.

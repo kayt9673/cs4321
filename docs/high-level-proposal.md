@@ -1,10 +1,10 @@
 # **C++ Vector-Relational Database**
 
 > **Current implementation note:** Persistent databases use a directory with
-> one catalog per table under `catalogs/` plus one row-oriented CSV file per table under `tables/`. The
-> logical schema uses `ColumnType` with validated vector dimensions and stable `ColumnId`
-> identifiers. See [storage-format.md](storage-format.md) for the concrete
-> format and recovery behavior.
+> one catalog per table under `catalogs/`, plus a row-oriented CSV file and a
+> `.nextid` counter per table under `tables/`. The logical schema uses `DataType`
+> with validated vector dimensions and `std::size_t` column indices. See
+> [storage-format.md](storage-format.md) for the concrete format and recovery behavior.
 
 ## **Summary & Motivation**
 

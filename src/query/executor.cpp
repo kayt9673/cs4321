@@ -3,6 +3,7 @@
 #include "db/errors.hpp"
 #include "vector/distance.hpp"
 
+#include <string_view>
 #include <type_traits>
 #include <unordered_set>
 #include <utility>

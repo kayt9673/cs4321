@@ -4,6 +4,7 @@
 #include "types/row.hpp"
 #include "types/schema.hpp"
 
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <vector>

@@ -13,7 +13,7 @@ int main() {
     query.table = "documents";
     query.projection = {"id", "title"};
 
-    std::string title{"document-000000000001"};
+    std::string title{"document_000000000001"};
     title.resize(128, 'x'); // Generated titles are padded to 128 characters.
     query.predicates.push_back(
         textComparison("title", ComparisonOperator::EQUAL, title));
