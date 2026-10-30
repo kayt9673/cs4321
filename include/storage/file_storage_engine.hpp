@@ -1,6 +1,5 @@
 #pragma once
 
-#include "storage/storage_engine.hpp"
 #include "storage/csv_format.hpp"
 
 #include <filesystem>
@@ -8,26 +7,26 @@
 
 namespace vrdb {
 
-class FileStorageEngine : public StorageEngine {
+class FileStorageEngine {
 public:
     // Set the database directory and create its table and catalog directories if needed.
     explicit FileStorageEngine(std::filesystem::path rootDirectory);
 
     // Create a table CSV file with its schema header.
-    void createTable(const std::string& tableName, const Schema& schema) override;
+    void createTable(const std::string& tableName, const Schema& schema);
     // Validate a row and append its CSV record to the table file.
-    RowId appendRow(const std::string& tableName, const Schema& schema, const Row& row) override;
-    bool updateRow(const std::string& tableName, const Schema& schema, RowId id, const Row& row) override;
-    bool deleteRow(const std::string& tableName, const Schema& schema, RowId id) override;
+    RowId appendRow(const std::string& tableName, const Schema& schema, const Row& row);
+    bool updateRow(const std::string& tableName, const Schema& schema, RowId id, const Row& row);
+    bool deleteRow(const std::string& tableName, const Schema& schema, RowId id);
     // Check the table header and deserialize all stored rows.
-    std::vector<StoredRow> readRows(const std::string& tableName, const Schema& schema) const override;
+    std::vector<StoredRow> readRows(const std::string& tableName, const Schema& schema) const;
     // Delete the table storage file or report a failure.
-    void dropTable(const std::string& tableName) override;
+    void dropTable(const std::string& tableName);
 
-    std::vector<std::string> listTables() const override;
-    Schema readSchema(const std::string& tableName) const override;
-    void writeSchema(const std::string& tableName, const Schema& schema) override;
-    void removeSchema(const std::string& tableName) override;
+    std::vector<std::string> listTables() const;
+    Schema readSchema(const std::string& tableName) const;
+    void writeSchema(const std::string& tableName, const Schema& schema);
+    void removeSchema(const std::string& tableName);
 
 private:
     CsvFormat::TableData readTable(const std::string& tableName, const Schema& schema) const;

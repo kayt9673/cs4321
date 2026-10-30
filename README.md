@@ -12,10 +12,9 @@ transactions, joins, or an external database dependency yet.
 
 - `DatabaseManager`: top-level API for creating tables and inserting, updating,
   deleting, and reading persisted rows.
-- `Catalog`: table names and schemas, persisted through the `StorageEngine`
-  interface. It does not know file paths or CSV layout.
-- `StorageEngine`: the interface for row and schema persistence.
-- `FileStorageEngine`: the current file backend. It manages the database's
+- `Catalog`: table names and schemas, persisted through `FileStorageEngine`.
+  It does not know file paths or CSV layout.
+- `FileStorageEngine`: manages the database's
   `tables/` and `catalogs/` directories, row mutations, and file replacement.
 - `CsvFormat`: encodes tables, schemas, and ID counters using input/output
   streams. `FileStorageEngine` owns a format object and calls it for encoding.
@@ -33,11 +32,9 @@ transactions, joins, or an external database dependency yet.
 - `vector/distance`: Euclidean and cosine distance utilities with dimension
   validation.
 
-`DatabaseManager` selects `FileStorageEngine` as the default backend for this
-milestone. A future backend implements `StorageEngine`; catalog and query logic
-need not know its physical format. `Catalog` receives the storage interface for
-each persistence operation, so moving a database does not leave it referring to
-another object's storage. CSV remains a simple, inspectable development format.
+`DatabaseManager` owns a `FileStorageEngine`, and `Catalog` receives that storage
+object for each persistence operation. CSV remains a simple, inspectable
+development format.
 
 ## Milestone 1 Functionality
 

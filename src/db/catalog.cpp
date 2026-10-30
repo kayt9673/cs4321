@@ -1,7 +1,7 @@
 #include "db/catalog.hpp"
 
 #include "db/errors.hpp"
-#include "storage/storage_engine.hpp"
+#include "storage/file_storage_engine.hpp"
 
 #include <algorithm>
 #include <string_view>
@@ -24,7 +24,7 @@ void Catalog::validateString(const std::string& name) {
 }
 
 // Load each table schema from storage.
-void Catalog::load(const StorageEngine& storage) {
+void Catalog::load(const FileStorageEngine& storage) {
     tables_.clear();
     for (const auto& tableName : storage.listTables()) {
         validateString(tableName);
@@ -33,7 +33,7 @@ void Catalog::load(const StorageEngine& storage) {
 }
 
 // Register a table schema and write only its catalog.
-void Catalog::createTable(const std::string& name, const Schema& schema, StorageEngine& storage) {
+void Catalog::createTable(const std::string& name, const Schema& schema, FileStorageEngine& storage) {
     validateString(name);
     if (hasTable(name)) {
         throw DatabaseError{"table already exists: " + name};
@@ -49,7 +49,7 @@ void Catalog::createTable(const std::string& name, const Schema& schema, Storage
 }
 
 // Delete a table's catalog before removing its in-memory schema.
-void Catalog::dropTable(const std::string& name, StorageEngine& storage) {
+void Catalog::dropTable(const std::string& name, FileStorageEngine& storage) {
     if (!hasTable(name)) {
         throw DatabaseError{"unknown table: " + name};
     }

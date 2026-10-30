@@ -8,7 +8,7 @@
 
 namespace vrdb {
 
-class StorageEngine;
+class FileStorageEngine;
 
 class Catalog {
 public:
@@ -16,11 +16,11 @@ public:
     static void validateString(const std::string& name);
 
     // Load each table schema from storage.
-    void load(const StorageEngine& storage);
+    void load(const FileStorageEngine& storage);
     // Register a table schema and write only its catalog.
-    void createTable(const std::string& name, const Schema& schema, StorageEngine& storage);
+    void createTable(const std::string& name, const Schema& schema, FileStorageEngine& storage);
     // Delete a table's catalog before removing its in-memory schema.
-    void dropTable(const std::string& name, StorageEngine& storage);
+    void dropTable(const std::string& name, FileStorageEngine& storage);
     // Return whether the catalog contains the named table.
     bool hasTable(const std::string& name) const;
     // Return the named table schema or report an unknown table.
