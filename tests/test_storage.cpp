@@ -1,6 +1,7 @@
 #include "db/database_manager.hpp"
 #include "db/errors.hpp"
 #include "storage/serialization.hpp"
+#include "storage/file_storage_engine.hpp"
 
 #include <cassert>
 #include <filesystem>
@@ -65,6 +66,31 @@ int main() {
     assert(std::get<std::string>(rows[1].cell(std::size_t{1})).empty());
     assert(std::get<std::string>(rows[2].cell(std::size_t{1})) == "A little review with spaces and punctuation!");
     assert(std::get<int64_t>(rows[2].cell(std::size_t{0})) == 2);
+
+    Query pagedQuery{};
+    pagedQuery.table = "reviews";
+    pagedQuery.offset = 1;
+    pagedQuery.limit = 2;
+    const auto sequential{db.select(pagedQuery, QueryExecutionOptions{1, 1, 1})};
+    const auto parallel{db.select(pagedQuery, QueryExecutionOptions{3, 1, 2})};
+    assert(parallel.rowIds == sequential.rowIds);
+    assert(parallel.rows.size() == sequential.rows.size());
+    for (std::size_t index{0}; index < parallel.rows.size(); ++index) {
+        assert(parallel.rows[index].cells() == sequential.rows[index].cells());
+    }
+
+    FileStorageEngine directStorage{root};
+    auto cursor{directStorage.openTableCursor("reviews", schema)};
+    assert(!cursor.finished());
+    const auto firstPage{cursor.readNextPage(2)};
+    const auto firstBatch{firstPage->snapshot()};
+    assert(firstPage->sequence() == 0 && firstBatch.size() == 2);
+    assert((std::vector<RowId>{firstBatch[0].id, firstBatch[1].id} ==
+            std::vector<RowId>{1, 2}));
+    const auto secondPage{cursor.readNextPage(2)};
+    const auto secondBatch{secondPage->snapshot()};
+    assert(secondPage->sequence() == 1 && secondBatch.size() == 1 && secondBatch[0].id == 3);
+    assert(cursor.finished());
 
     db.update("reviews", 2, Row{{int64_t{99}, std::string{"updated"}, std::vector<float>{0, 0, 0}}});
     assert(std::get<std::string>(db.select(query).rows[1].cell(1)) == "updated");

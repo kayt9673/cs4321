@@ -5,9 +5,54 @@
 #include <algorithm>
 #include <fstream>
 #include <limits>
+#include <memory>
+#include <optional>
 #include <utility>
 
 namespace vrdb {
+
+struct TableCursor::Impl {
+    std::ifstream file;
+    CsvFormat::TableReader reader;
+    std::optional<RowId> nextId;
+    std::string tableName;
+
+    Impl(const std::filesystem::path& path, std::string name, const Schema& schema,
+         std::optional<RowId> storedNextId)
+        : file{path}, reader{file, name, schema}, nextId{storedNextId},
+          tableName{std::move(name)} {
+        if (!file) {
+            throw StorageError{"failed to read table storage for " + tableName};
+        }
+    }
+};
+
+TableCursor::TableCursor(std::unique_ptr<Impl> impl) : impl_{std::move(impl)} {}
+TableCursor::~TableCursor() = default;
+TableCursor::TableCursor(TableCursor&&) noexcept = default;
+TableCursor& TableCursor::operator=(TableCursor&&) noexcept = default;
+
+std::unique_ptr<Page> TableCursor::readNextPage(std::size_t maxRows) {
+    auto rows{impl_->reader.readNext(maxRows)};
+    if (impl_->file.bad()) {
+        throw StorageError{"failed to read table storage for " + impl_->tableName};
+    }
+    if (impl_->nextId && std::any_of(rows.begin(), rows.end(), [this](const StoredRow& row) {
+            return row.id >= *impl_->nextId;
+        })) {
+        throw StorageError{"RowId counter does not exceed stored IDs for " + impl_->tableName};
+    }
+    auto page{std::make_unique<Page>(nextPageSequence_, maxRows)};
+    for (auto& row : rows) {
+        if (!page->addRow(std::move(row))) {
+            throw StorageError{"cursor produced more rows than the page capacity"};
+        }
+    }
+    if (!page->empty()) ++nextPageSequence_;
+    return page;
+}
+
+bool TableCursor::finished() const { return impl_->reader.finished(); }
 
 // Set the database directory and create its table and catalog directories if needed.
 FileStorageEngine::FileStorageEngine(std::filesystem::path rootDirectory)
@@ -58,7 +103,9 @@ RowId FileStorageEngine::appendRow(const std::string& tableName, const Schema& s
     if (!file) {
         throw StorageError{"failed to append row to " + tableName};
     }
-    format_.writeRow(file, StoredRow{id, row});
+    Page page{0, 1};
+    page.addRow(StoredRow{id, row});
+    format_.writePage(file, page);
     file.close();
     if (!file) {
         throw StorageError{"failed to write row to " + tableName};
@@ -103,7 +150,28 @@ bool FileStorageEngine::deleteRow(const std::string& tableName, const Schema& sc
 // Check the table header and deserialize all stored rows.
 std::vector<StoredRow> FileStorageEngine::readRows(const std::string& tableName,
                                                    const Schema& schema) const {
-    return readTable(tableName, schema).rows;
+    auto cursor{openTableCursor(tableName, schema)};
+    std::vector<StoredRow> rows{};
+    constexpr std::size_t batchSize{1024};
+    while (!cursor.finished()) {
+        auto batch{cursor.readNextPage(batchSize)->takeRows()};
+        rows.insert(rows.end(), std::make_move_iterator(batch.begin()),
+                    std::make_move_iterator(batch.end()));
+    }
+    return rows;
+}
+
+TableCursor FileStorageEngine::openTableCursor(const std::string& tableName,
+                                               const Schema& schema) const {
+    const auto path{tablePath(tableName)};
+    std::ifstream probe{path};
+    if (!probe) {
+        throw StorageError{"failed to read table storage for " + tableName};
+    }
+    CsvFormat::TableReader header{probe, tableName, schema};
+    const auto nextId{header.legacy() ? std::optional<RowId>{} :
+                                      std::optional<RowId>{readNextId(tableName)}};
+    return TableCursor{std::make_unique<TableCursor::Impl>(path, tableName, schema, nextId)};
 }
 
 CsvFormat::TableData FileStorageEngine::readTable(const std::string& tableName,

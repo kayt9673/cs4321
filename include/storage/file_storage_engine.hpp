@@ -1,11 +1,33 @@
 #pragma once
 
 #include "storage/csv_format.hpp"
+#include "storage/page.hpp"
 
 #include <filesystem>
+#include <memory>
 #include <string>
 
 namespace vrdb {
+
+// Own one sequential table scan and return bounded batches from its open file.
+class TableCursor {
+public:
+    ~TableCursor();
+    TableCursor(TableCursor&&) noexcept;
+    TableCursor& operator=(TableCursor&&) noexcept;
+    TableCursor(const TableCursor&) = delete;
+    TableCursor& operator=(const TableCursor&) = delete;
+
+    std::unique_ptr<Page> readNextPage(std::size_t maxRows);
+    bool finished() const;
+
+private:
+    friend class FileStorageEngine;
+    struct Impl;
+    explicit TableCursor(std::unique_ptr<Impl> impl);
+    std::unique_ptr<Impl> impl_;
+    std::size_t nextPageSequence_{0};
+};
 
 class FileStorageEngine {
 public:
@@ -20,6 +42,8 @@ public:
     bool deleteRow(const std::string& tableName, const Schema& schema, RowId id);
     // Check the table header and deserialize all stored rows.
     std::vector<StoredRow> readRows(const std::string& tableName, const Schema& schema) const;
+    // Open one sequential scan; the cursor keeps the CSV stream between batches.
+    TableCursor openTableCursor(const std::string& tableName, const Schema& schema) const;
     // Delete the table storage file or report a failure.
     void dropTable(const std::string& tableName);
 

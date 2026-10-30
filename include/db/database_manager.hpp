@@ -11,6 +11,14 @@
 
 namespace vrdb {
 
+struct QueryExecutionOptions {
+    // One worker is sequential; zero selects a hardware-based default.
+    std::size_t workerCount{0};
+    std::size_t batchSize{1024};
+    // Maximum submitted batches not yet collected; zero selects 2 * workers.
+    std::size_t maxInFlightBatches{0};
+};
+
 // Coordinate catalog, storage, and query execution for a database.
 class DatabaseManager {
 public:
@@ -31,7 +39,8 @@ public:
     void update(const std::string& tableName, RowId id, const Row& row);
     void erase(const std::string& tableName, RowId id);
     // Read a table and execute the requested query against its rows.
-    QueryResult select(const Query& query);
+    QueryResult select(const Query& query,
+                       QueryExecutionOptions options = {});
 
     // Return whether the catalog contains the named table.
     bool hasTable(const std::string& name) const;

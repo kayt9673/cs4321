@@ -61,9 +61,7 @@ void validatePredicate(const Predicate& predicate, std::size_t columnId, const S
 
 } // namespace
 
-// Filter rows, then apply offset, projection, and limit in input order.
-QueryResult QueryExecutor::execute(const Query& query, const Schema& schema,
-                                   const std::vector<StoredRow>& rows) const {
+QueryExecutor::State QueryExecutor::begin(const Query& query, const Schema& schema) const {
     std::vector<std::size_t> projection{};
     projection.reserve(query.projection.size());
     std::unordered_set<std::size_t> projectedColumns{};
@@ -85,9 +83,34 @@ QueryResult QueryExecutor::execute(const Query& query, const Schema& schema,
         predicates.push_back(ResolvedPredicate{id, &predicate});
     }
 
-    QueryResult result{projectSchema(schema, projection), {}, {}};
+    State state{QueryResult{projectSchema(schema, projection), {}, {}}, 0, false};
     if (query.limit && *query.limit == 0) {
-        return result;
+        state.complete = true;
+    }
+    return state;
+}
+
+void QueryExecutor::executeBatch(const Query& query, const Schema& schema,
+                                 const std::vector<StoredRow>& rows, State& state) const {
+    if (state.complete) return;
+
+    std::vector<std::size_t> projection{};
+    projection.reserve(query.projection.size());
+    std::unordered_set<std::size_t> projectedColumns{};
+    for (const auto& columnName : query.projection) {
+        const auto id{requireColumn(schema, columnName)};
+        if (!projectedColumns.insert(id).second) {
+            throw QueryError{"duplicate projected column: " + columnName};
+        }
+        projection.push_back(id);
+    }
+
+    std::vector<ResolvedPredicate> predicates{};
+    predicates.reserve(query.predicates.size());
+    for (const auto& predicate : query.predicates) {
+        const auto id{requireColumn(schema, predicateColumnName(predicate))};
+        validatePredicate(predicate, id, schema);
+        predicates.push_back(ResolvedPredicate{id, &predicate});
     }
 
     // Parallel-filtering alternative (requires C++20, Threads::Threads, and
@@ -149,8 +172,6 @@ QueryResult QueryExecutor::execute(const Query& query, const Schema& schema,
     }
     */
 
-    std::size_t skipped{0};
-
     for (const auto& stored : rows) {
         const auto& row{stored.row};
         bool include{true};
@@ -163,18 +184,26 @@ QueryResult QueryExecutor::execute(const Query& query, const Schema& schema,
         if (!include) {
             continue;
         }
-        if (skipped < query.offset) {
-            ++skipped;
+        if (state.skipped < query.offset) {
+            ++state.skipped;
             continue;
         }
 
-        result.rows.push_back(projectRow(row, projection));
-        result.rowIds.push_back(stored.id);
-        if (query.limit && result.rows.size() >= *query.limit) {
+        state.result.rows.push_back(projectRow(row, projection));
+        state.result.rowIds.push_back(stored.id);
+        if (query.limit && state.result.rows.size() >= *query.limit) {
+            state.complete = true;
             break;
         }
     }
-    return result;
+}
+
+// Filter rows, then apply offset, projection, and limit in input order.
+QueryResult QueryExecutor::execute(const Query& query, const Schema& schema,
+                                   const std::vector<StoredRow>& rows) const {
+    auto state{begin(query, schema)};
+    executeBatch(query, schema, rows, state);
+    return std::move(state.result);
 }
 
 // Evaluate one typed predicate against a row cell.

@@ -5,6 +5,8 @@
 
 #include <charconv>
 #include <limits>
+#include <memory>
+#include <stdexcept>
 #include <unordered_set>
 #include <utility>
 
@@ -27,44 +29,89 @@ RowId parseRowId(const std::string& text, const std::string& context) {
 
 } // namespace
 
+struct CsvFormat::TableReader::Impl {
+    std::istream& input;
+    std::string tableName;
+    Schema schema;
+    bool legacyFormat{false};
+    bool reachedEnd{false};
+    RowId nextLegacyId{1};
+    std::unordered_set<RowId> seen;
+
+    Impl(std::istream& stream, std::string name, Schema tableSchema)
+        : input{stream}, tableName{std::move(name)}, schema{std::move(tableSchema)} {
+        std::vector<std::string> fields{};
+        if (!readCsvRecord(input, fields)) {
+            throw StorageError{"table CSV is missing its header: " + tableName};
+        }
+        legacyFormat = fields.size() == schema.size();
+        const std::size_t offset{legacyFormat ? 0u : 1u};
+        if (fields.size() != schema.size() + offset ||
+            (!legacyFormat && fields.front() != rowIdHeader)) {
+            throw StorageError{"table CSV header does not match schema: " + tableName};
+        }
+        for (std::size_t index{0}; index < schema.size(); ++index) {
+            if (fields[index + offset] != schema.column(index).name) {
+                throw StorageError{"table CSV header does not match schema: " + tableName};
+            }
+        }
+    }
+};
+
+CsvFormat::TableReader::TableReader(std::istream& input, std::string tableName, Schema schema)
+    : impl_{std::make_unique<Impl>(input, std::move(tableName), std::move(schema))} {}
+
+CsvFormat::TableReader::~TableReader() = default;
+CsvFormat::TableReader::TableReader(TableReader&&) noexcept = default;
+CsvFormat::TableReader& CsvFormat::TableReader::operator=(TableReader&&) noexcept = default;
+
+std::vector<StoredRow> CsvFormat::TableReader::readNext(std::size_t maxRows) {
+    if (maxRows == 0) {
+        throw std::invalid_argument{"CSV batch size must be greater than zero"};
+    }
+    std::vector<StoredRow> rows{};
+    rows.reserve(maxRows);
+    std::vector<std::string> fields{};
+    const std::size_t offset{impl_->legacyFormat ? 0u : 1u};
+    while (rows.size() < maxRows) {
+        if (!readCsvRecord(impl_->input, fields)) {
+            impl_->reachedEnd = true;
+            break;
+        }
+        if (fields.size() != impl_->schema.size() + offset) {
+            throw StorageError{"stored row width does not match schema: " + impl_->tableName};
+        }
+        RowId id{};
+        if (impl_->legacyFormat) {
+            if (impl_->nextLegacyId == std::numeric_limits<RowId>::max()) {
+                throw StorageError{"too many rows in " + impl_->tableName};
+            }
+            id = impl_->nextLegacyId++;
+        } else {
+            id = parseRowId(fields.front(), impl_->tableName);
+            fields.erase(fields.begin());
+            if (!impl_->seen.insert(id).second) {
+                throw StorageError{"duplicate RowId in " + impl_->tableName};
+            }
+        }
+        rows.push_back(StoredRow{id, deserializeRowFromCsv(fields, impl_->schema)});
+    }
+    return rows;
+}
+
+bool CsvFormat::TableReader::finished() const { return impl_->reachedEnd; }
+bool CsvFormat::TableReader::legacy() const { return impl_->legacyFormat; }
+
 // Check the table header and deserialize all stored rows.
 CsvFormat::TableData CsvFormat::readTable(std::istream& input, const std::string& tableName,
                                          const Schema& schema) const {
-    std::vector<std::string> fields{};
-    if (!readCsvRecord(input, fields)) {
-        throw StorageError{"table CSV is missing its header: " + tableName};
-    }
-    const bool legacy{fields.size() == schema.size()};
-    const std::size_t offset{legacy ? 0u : 1u};
-    if (fields.size() != schema.size() + offset || (!legacy && fields.front() != rowIdHeader)) {
-        throw StorageError{"table CSV header does not match schema: " + tableName};
-    }
-    for (std::size_t index{0}; index < schema.size(); ++index) {
-        if (fields[index + offset] != schema.column(index).name) {
-            throw StorageError{"table CSV header does not match schema: " + tableName};
-        }
-    }
-
-    TableData data{{}, legacy};
-    std::unordered_set<RowId> seen{};
-    while (readCsvRecord(input, fields)) {
-        if (fields.size() != schema.size() + offset) {
-            throw StorageError{"stored row width does not match schema: " + tableName};
-        }
-        RowId id{};
-        if (legacy) {
-            if (data.rows.size() >= std::numeric_limits<RowId>::max() - 1) {
-                throw StorageError{"too many rows in " + tableName};
-            }
-            id = static_cast<RowId>(data.rows.size()) + 1;
-        } else {
-            id = parseRowId(fields.front(), tableName);
-            fields.erase(fields.begin());
-            if (!seen.insert(id).second) {
-                throw StorageError{"duplicate RowId in " + tableName};
-            }
-        }
-        data.rows.push_back(StoredRow{id, deserializeRowFromCsv(fields, schema)});
+    TableReader reader{input, tableName, schema};
+    TableData data{{}, reader.legacy()};
+    constexpr std::size_t batchSize{1024};
+    while (!reader.finished()) {
+        auto batch{reader.readNext(batchSize)};
+        data.rows.insert(data.rows.end(), std::make_move_iterator(batch.begin()),
+                         std::make_move_iterator(batch.end()));
     }
     return data;
 }
@@ -77,6 +124,12 @@ void CsvFormat::writeTable(std::ostream& output, const Schema& schema,
     }
     writeCsvRecord(output, header);
     for (const auto& row : rows) {
+        writeRow(output, row);
+    }
+}
+
+void CsvFormat::writePage(std::ostream& output, const Page& page) const {
+    for (const auto& row : page.snapshot()) {
         writeRow(output, row);
     }
 }

@@ -11,6 +11,17 @@ namespace vrdb {
 
 class QueryExecutor {
 public:
+    struct State {
+        QueryResult result;
+        std::size_t skipped{0};
+        bool complete{false};
+    };
+
+    // Initialize a result that can be filled by one or more input batches.
+    State begin(const Query& query, const Schema& schema) const;
+    // Process one batch, preserving offset and limit state across calls.
+    void executeBatch(const Query& query, const Schema& schema,
+                      const std::vector<StoredRow>& rows, State& state) const;
     // Filter rows, then apply offset, projection, and limit in input order.
     QueryResult execute(const Query& query, const Schema& schema, const std::vector<StoredRow>& rows) const;
 

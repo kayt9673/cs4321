@@ -59,6 +59,19 @@ int main() {
     const auto preciseResult{executor.execute(preciseQuery, schema, preciseRows)};
     assert(preciseResult.rows.size() == 1);
     assert(std::get<int64_t>(preciseResult.rows[0].cell(0)) == 3);
+
+    // Offset and limit continue across independently supplied storage batches.
+    Query batchedQuery{};
+    batchedQuery.table = "reviews";
+    batchedQuery.offset = 1;
+    batchedQuery.limit = 1;
+    auto state{executor.begin(batchedQuery, schema)};
+    executor.executeBatch(batchedQuery, schema, {rows.front()}, state);
+    assert(state.result.rows.empty() && !state.complete);
+    executor.executeBatch(batchedQuery, schema, {rows.back()}, state);
+    assert(state.complete);
+    assert(state.result.rowIds == std::vector<RowId>{42});
+
     // Queries retain their own predicate payloads when copied.
     auto copiedQuery{query};
     query.predicates.clear();

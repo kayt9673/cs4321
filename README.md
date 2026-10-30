@@ -14,8 +14,10 @@ transactions, joins, or an external database dependency yet.
   deleting, and reading persisted rows.
 - `Catalog`: table names and schemas, persisted through `FileStorageEngine`.
   It does not know file paths or CSV layout.
-- `FileStorageEngine`: manages the database's
-  `tables/` and `catalogs/` directories, row mutations, and file replacement.
+- `FileStorageEngine`: manages the database's `tables/` and `catalogs/`
+  directories, row mutations, file replacement, and sequential table cursors.
+- `Page`: a capacity-bounded, mutex-protected owner for one ordered batch of
+  stored rows passed from table cursors to query workers.
 - `CsvFormat`: encodes tables, schemas, and ID counters using input/output
   streams. `FileStorageEngine` owns a format object and calls it for encoding.
 - `storage/serialization`: the existing CSV record, cell, vector, and data-type
@@ -27,7 +29,7 @@ transactions, joins, or an external database dependency yet.
   a map; `StoredRow` keeps physical identity separate from logical values.
   `QueryResult::rowIds` corresponds positionally to its rows.
 - `Predicate`, `Query`, `QueryResult`, and `QueryExecutor`: programmatic query
-  representation and a sequential-scan executor with projection, offset, limit,
+  representation and batched scan execution with projection, offset, limit,
   integer predicates, text equality predicates, and vector-distance predicates.
 - `vector/distance`: Euclidean and cosine distance utilities with dimension
   validation.
@@ -57,8 +59,9 @@ development format.
 - Predicates use AND semantics and support integer comparison, text equality
   and inequality, and vector distance comparisons for Euclidean or cosine
   distance.
-- Query execution reads persisted rows from storage, scans sequentially, applies
-  predicates, offset, projection, and limit, then returns `QueryResult`.
+- Query execution reads persisted rows in bounded batches and can evaluate batches
+  on a bounded worker pool while preserving table order. One-worker mode provides
+  sequential execution for comparisons and low-overhead workloads.
 - Errors use the following exception hierarchy: `DatabaseError`,
   `SchemaError`, `StorageError`, and `QueryError`.
 - Column names are case-sensitive. Table names are case-sensitive identifiers
