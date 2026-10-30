@@ -5,7 +5,7 @@ correctness, restart recovery, and human inspection over performance.
 
 `CsvFormat` handles this encoding through streams, using the existing
 serialization helpers. `FileStorageEngine` owns paths and file operations and
-delegates encoding to that format object. The `StorageEngine` interface exposes
+delegates encoding to that format object. `FileStorageEngine` exposes
 rows and schemas; neither it nor `Catalog` exposes CSV fields or filenames.
 
 ## Directory Layout

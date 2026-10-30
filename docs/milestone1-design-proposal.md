@@ -60,7 +60,7 @@ Adding a database type requires extending both `ColumnType` and `Cell`.
 | type \== VECTOR &&  vectorDimension \== 0 | Vector dimension must be positive |
 | type \!= VECTOR && vectorDimension.has\_value() | Vector dimension must have a specified value |
 
-# 
+#
 
 # **Schema**
 
@@ -74,20 +74,20 @@ Adding a database type requires extending both `ColumnType` and `Cell`.
 | Schema{{     {"id", ColumnType::INTEGER, std::nullopt},     {"title", ColumnType::TEXT, std::nullopt},     {"embedding", ColumnType::VECTOR, 384} }}; |
 | :---- |
 
-**Additional Specifications:** 
+**Additional Specifications:**
 
 `columnIndex()` is the common lookup mechanism used by predicate execution and projection.
 
 `Schema::validate()` enforces:
 
-- columns.size() \> 0  
-- For every column, column.name \!= “” and the column is valid   
-- For every pair of columns, column names are unique   
+- columns.size() \> 0
+- For every column, column.name \!= “” and the column is valid
+- For every pair of columns, column names are unique
 - Column order is preserved
 
 Unknown columns result in an error rather than returning an invalid index.
 
-# 
+#
 
 # **Row**
 
@@ -96,24 +96,24 @@ Unknown columns result in an error rather than returning an invalid index.
 | /\*\*  \* Represents a single row of cells in a table.  \*/ class Row { public:     // Creates a row from an ordered list of cells.     explicit Row(std::vector\<Cell\> cells);     // Returns all cells in the row.     const std::vector\<Cell\>& cells() const;     // Returns the value at the given index.     const Cell& value(         std::size\_t index     ) const;     // Returns the number of cells in the row.     std::size\_t size() const;     // Verifies that the row matches the given schema (see below).      void validateAgainst(         const Schema& schema     ) const; private:     // Cells stored in schema order.     std::vector\<Cell\> cells\_; }; |
 | :---- |
 
-**Example:** 
+**Example:**
 
 | Schema  | `Row` Representation |
 | ----- | ----- |
 | id          INTEGER title       TEXT embedding   VECTOR(3) | {     int64\_t{42},     std::string{"Example"},     Vector{0.1f, 0.2f, 0.3f} } |
 
-**Additional Specifications:** 
+**Additional Specifications:**
 
 `validateAgainst(schema)` checks:
 
-- row.size \== schema.size  
-- All column types are correct, i.e.  
-  - INTEGER → int64\_t  
-  - TEXT    → std::string  
-  - VECTOR  → Vector  
+- row.size \== schema.size
+- All column types are correct, i.e.
+  - INTEGER → int64\_t
+  - TEXT    → std::string
+  - VECTOR  → Vector
 - For vector columns: value.size \== column.vectorDimension
 
-# 
+#
 
 # **Catalog**
 
@@ -124,48 +124,40 @@ Unknown columns result in an error rather than returning an invalid index.
 
 **Example:** Intended behavior
 
-Database: 
+Database:
 
 | my\_database/ ├── catalog.vrdb └── tables/     ├── products.vrdb     └── users.vrdb |
 | :---- |
 
 `catalog.vrdb` should contain sufficient information to reconstruct both the `products` and `users` schemas.
 
-**Additional Specifications:** 
+**Additional Specifications:**
 
 `Catalog::load()` is called when the database opens.
 
-- Invariant: catalog contains table ⇔ database recognizes table  
+- Invariant: catalog contains table ⇔ database recognizes table
 - The existence of `products.vrdb` alone does not define a table.
 
-**StorageEngine**
+**FileStorageEngine**
 
-`include/storage/storage_engine.hpp`
+`include/storage/file_storage_engine.hpp`
 
-The storage layer is responsible for persistent data, not schema validation or query execution.
+The file storage layer owns persistent table and schema data. It creates and deletes tables, performs row mutations, reads rows, and manages catalog files. It is a concrete component rather than an implementation of a storage interface.
 
-| /\*\*  \* Defines the interface for persistent table storage.  \*/ class StorageEngine { public:     // Virtual destructor for storage engine implementations.     virtual \~StorageEngine() \= default;      // Creates persistent storage for a new table.     virtual void createTable(         const std::string& tableName     ) \= 0;      // Appends a validated row to the table.     virtual void appendRow(         const std::string& tableName,         const Schema& schema,         const Row& row     ) \= 0;      // Reads and returns all rows from the table.     virtual std::vector\<Row\> readRows(         const std::string& tableName,         const Schema& schema     ) \= 0;      // Deletes the table's persistent storage.     virtual void dropTable(         const std::string& tableName     ) \= 0; }; |
-| :---- |
-
-`FileStorageEngine` implements this interface.
-
-| /\*\*  \* File-based implementation of the StorageEngine.  \* Stores table data as files within the database directory.  \*/ class FileStorageEngine : public StorageEngine { public:     // Creates a file storage engine using the given root directory.     explicit FileStorageEngine(         std::filesystem::path root     );     // Creates the file used to store a table.     void createTable(...) override;     // Appends a row to the table's file.     void appendRow(...) override;     // Reads all rows from the table's file.     std::vector\<Row\> readRows(...) override;     // Deletes the table's file.     void dropTable(...) override; private:     // Root directory containing table files.     std::filesystem::path root\_; }; |
-| :---- |
-
-# 
+#
 
 # **Row Serialization**
 
 `include/storage/serialization.hpp`
 
-Serialization is isolated from `StorageEngine`, so that file I/O and value encoding are separate responsibilities.
+Serialization is isolated from `FileStorageEngine`, so that file I/O and value encoding are separate responsibilities.
 
 A malformed or schema-incompatible row is considered an error.
 
 | // Converts a database value into its persistent string representation. std::string serializeCell(     const Cell& value ); // Converts a serialized value back into its expected column type. Cell deserializeCell(     const std::string& encoded,     const Column& column );  // Converts a complete row into its persistent string representation. std::string serializeRow(     const Row& row ); // Reconstructs a row using its serialized data and table schema. Row deserializeRow(     const std::string& encoded,     const Schema& schema ); |
 | :---- |
 
-# 
+#
 
 # **Query**
 
@@ -174,9 +166,9 @@ A malformed or schema-incompatible row is considered an error.
 | /\*\*  \* Represents a query to execute against a table.  \*/ struct Query {     // Name of the table being queried.     std::string table;     // Columns to return. Empty means all columns (see below).     std::vector\<std::string\> projection;     // Conditions that rows must satisfy.     std::vector\<Predicate\> predicates;     // Maximum number of rows to return.     std::optional\<std::size\_t\> limit;     // Number of matching rows to skip before returning results.     std::size\_t offset \= 0; }; |
 | :---- |
 
-**Additional Specifications:** 
+**Additional Specifications:**
 
-Projections: 
+Projections:
 
 | Description | Code | Equivalent Query |
 | ----- | ----- | ----- |
@@ -185,7 +177,7 @@ Projections:
 
 Predicates are evaluated with `AND` semantics.
 
-# 
+#
 
 # **Predicate**
 
@@ -211,7 +203,7 @@ Predicates are evaluated with `AND` semantics.
 | struct TextPredicate {     std::string column;     ComparisonOperator op; // Only EQUAL and NOT\_EQUAL are valid     std::string value; }; |
 | :---- |
 
-## 
+##
 
 ## **DistanceMetric**
 
@@ -243,13 +235,13 @@ Execution can dispatch based on the predicate type without manually storing a pr
 | /\*\*  \* Represents the result returned from a query.  \*/ struct QueryResult {     // Schema describing the columns in the returned rows.     Schema schema;     // Rows that matched the query.     std::vector\<Row\> rows; }; |
 | :---- |
 
-**Example:** 
+**Example:**
 
 | Schema | Projection | `QueryResult` |
 | ----- | ----- | ----- |
 | id          INTEGER title       TEXT year        INTEGER embedding   VECTOR(384) | projection \= \["title", "year"\] | QueryResult │ ├── Schema │   ├── title TEXT │   └── year INTEGER │ └── Rows     ├── \[...\]     ├── \[...\]     └── \[...\] |
 
-# 
+#
 
 # **Distance Functions**
 
@@ -260,11 +252,11 @@ Execution can dispatch based on the predicate type without manually storing a pr
 
 **Requirements:**
 
-- Both operands must have equal dimensions.  
-- For cosine distance, a zero vector is invalid   
+- Both operands must have equal dimensions.
+- For cosine distance, a zero vector is invalid
   - However, a zero vector remains valid **stored data**. The error occurs only when an operation requiring a nonzero norm is performed.
 
-# 
+#
 
 # **QueryExecutor**
 
@@ -275,27 +267,27 @@ Execution can dispatch based on the predicate type without manually storing a pr
 
 **Query Execution Order:**
 
-1) Validate the query against the table's schema.  
-2) Scan each row sequentially.  
-3) Evaluate all predicates against the current row.  
-- If any predicate is false, skip the row.  
-- If all predicates are true, continue processing the row.  
-4) Apply the query offset.  
-- Skip matching rows until the offset has been reached.  
-5) Apply the projection to select only the requested columns.  
-6) Add the projected row to the query result.  
-7) Check the query limit.  
-- If the limit has been reached, return the result.  
-- Otherwise, continue scanning rows.  
+1) Validate the query against the table's schema.
+2) Scan each row sequentially.
+3) Evaluate all predicates against the current row.
+- If any predicate is false, skip the row.
+- If all predicates are true, continue processing the row.
+4) Apply the query offset.
+- Skip matching rows until the offset has been reached.
+5) Apply the projection to select only the requested columns.
+6) Add the projected row to the query result.
+7) Check the query limit.
+- If the limit has been reached, return the result.
+- Otherwise, continue scanning rows.
 8) Return the result after all rows have been scanned.
 
-# 
+#
 
 # **Database**
 
 `include/db/database_manager.hpp`
 
-| /\*\*  \* Main interface for interacting with the database.  \*/ class Database { public:     // Opens or creates a database at the given path.     explicit Database(         const std::filesystem::path& path     );     // Creates a new table with the given schema.     void createTable(         const std::string& name,         const Schema& schema     );     // Removes a table from the database.     void dropTable(         const std::string& name     );     // Inserts a row into the specified table.     void insert(         const std::string& tableName,         const Row& row     );     // Executes a query and returns its results.     QueryResult select(         const Query& query     );     // Returns whether the named table exists.     bool hasTable(         const std::string& name     ) const;     // Returns the names of all tables in the database.     std::vector\<std::string\> listTables() const;     // Returns the schema for the specified table.     const Schema& getSchema(         const std::string& tableName     ) const;     // Returns the number of rows in the specified table.     std::size\_t rowCount(         const std::string& tableName     ) const; private:     // Stores table names and schemas.     Catalog catalog\_;     // Handles persistent table and row storage.     std::unique\_ptr\<StorageEngine\> storage\_;     // Executes queries against stored rows.     QueryExecutor executor\_; }; |
+| /\*\*  \* Main interface for interacting with the database.  \*/ class Database { public:     // Opens or creates a database at the given path.     explicit Database(         const std::filesystem::path& path     );     // Creates a new table with the given schema.     void createTable(         const std::string& name,         const Schema& schema     );     // Removes a table from the database.     void dropTable(         const std::string& name     );     // Inserts a row into the specified table.     void insert(         const std::string& tableName,         const Row& row     );     // Executes a query and returns its results.     QueryResult select(         const Query& query     );     // Returns whether the named table exists.     bool hasTable(         const std::string& name     ) const;     // Returns the names of all tables in the database.     std::vector\<std::string\> listTables() const;     // Returns the schema for the specified table.     const Schema& getSchema(         const std::string& tableName     ) const;     // Returns the number of rows in the specified table.     std::size\_t rowCount(         const std::string& tableName     ) const; private:     // Stores table names and schemas.     Catalog catalog\_;     // Handles persistent table and row storage.     FileStorageEngine storage\_;     // Executes queries against stored rows.     QueryExecutor executor\_; }; |
 | :---- |
 
 **Example:** Using `Database`
@@ -303,7 +295,7 @@ Execution can dispatch based on the predicate type without manually storing a pr
 | // Open or create the database at the given directory. Database db{"./my\_database"}; // Create a table with integer, text, and vector columns. db.createTable(     "documents",     Schema{{         {"id", ColumnType::INTEGER},         {"text", ColumnType::TEXT},         {"embedding", ColumnType::VECTOR, 384}     }} ); // Insert a row that matches the \`documents\` schema. db.insert(     "documents",     Row{{         int64\_t{1},         std::string{"vector databases"},         embedding     }} ); // Create a query against the \`documents\` table. Query query{}; query.table \= "documents"; // Only return rows where id \> 0 AND // cosine distance from the reference vector is \< 0.3. query.predicates \= {     IntegerPredicate{         "id",         ComparisonOperator::GREATER\_THAN,         0     },     VectorPredicate{         "embedding",         DistanceMetric::COSINE,         reference,         ComparisonOperator::LESS\_THAN,         0.3f     } }; // Execute the query and store the matching rows. QueryResult result{db.select(query)}; |
 | :---- |
 
-# 
+#
 
 # **Database Startup**
 
@@ -312,26 +304,26 @@ Creating the `Database` instance below performs the following initialization ste
 | Database db{"./my\_database"}; |
 | :---- |
 
-1) **Verify the database directory:** Create `./my_database` if it does not already exist.  
-2) **Initialize the storage engine:** Set up the `FileStorageEngine` for reading and writing table data.  
-3) **Initialize the catalog:** Set up the `Catalog` used to manage table metadata.  
+1) **Verify the database directory:** Create `./my_database` if it does not already exist.
+2) **Initialize the storage engine:** Set up the `FileStorageEngine` for reading and writing table data.
+3) **Initialize the catalog:** Set up the `Catalog` used to manage table metadata.
 4) **Load existing metadata:** Call `Catalog::load()` to restore previously created table names and schemas.
 
-**Example:** Valid flow 
+**Example:** Valid flow
 
 | // First session: create the database, table, and row. {     Database db("./data");     db.createTable("documents", schema);     db.insert("documents", row); } // Database closes here. // Second session: reopen the same database. Database db("./data");  db.hasTable("documents");   // true db.getSchema("documents");  // returns the original schema db.rowCount("documents");   // returns 1 |
 | :---- |
 
-# 
+#
 
 # **Insert Execution**
 
 `Database::insert()` handles the entire process of inserting a row:
 
-1) Check that the table exists using `Catalog::hasTable()`.  
-2) Retrieve the table's schema using `Catalog::getSchema()`.  
-3) Validate the row against the schema using `Row::validateAgainst()`.  
-4) Persist the row using `StorageEngine::appendRow()`.
+1) Check that the table exists using `Catalog::hasTable()`.
+2) Retrieve the table's schema using `Catalog::getSchema()`.
+3) Validate the row against the schema using `Row::validateAgainst()`.
+4) Persist the row using `FileStorageEngine::appendRow()`.
 
 Rows are written directly to persistent storage rather than being maintained in both memory and storage. This avoids inconsistencies between in-memory and persisted data and establishes the storage engine as the single source of truth for table rows.
 
@@ -339,18 +331,18 @@ Rows are written directly to persistent storage rather than being maintained in 
 
 `Database::select()` handles the complete query execution process:
 
-1) Retrieve the table's schema using `Catalog::getSchema()`.  
-2) Read the table's persisted rows using `StorageEngine::readRows()`.  
-3) Pass the query, schema, and rows to `QueryExecutor::execute()`.  
+1) Retrieve the table's schema using `Catalog::getSchema()`.
+2) Read the table's persisted rows using `FileStorageEngine::readRows()`.
+3) Pass the query, schema, and rows to `QueryExecutor::execute()`.
 4) Return the resulting `QueryResult`.
 
 This ensures that queries are executed against the persisted table data, rather than a separate in-memory copy.
 
-# 
+#
 
 # **Error Handling**
 
-The repository uses exceptions using the following hierarchy: 
+The repository uses exceptions using the following hierarchy:
 
 | /\*\*  \* Base exception type for database-related errors.  \*/ class DatabaseError     : public std::runtime\_error {}; /\*\*  \* Thrown when a schema or row violates schema requirements.  \*/ class SchemaError     : public DatabaseError {}; /\*\*  \* Thrown when an error occurs while reading or writing    \* persistent data.  \*/ class StorageError     : public DatabaseError {}; /\*\*  \* Thrown when a query is invalid or cannot be executed.  \*/ class QueryError     : public DatabaseError {}; |
 | :---- |
@@ -370,40 +362,40 @@ The repository uses exceptions using the following hierarchy:
 | QueryError:     unknown column 'rating' QueryError:     operator '\<' is not supported for TEXT |
 | :---- |
 
-# 
+#
 
 # **Component Dependencies**
 
 The codebase follows this dependency hierarchy:
 
-| Database ├── Catalog │   └── Schema ├── StorageEngine │   └── Row └── QueryExecutor     ├── Predicate     └── Vector Distance Schema, Row, and Predicate └── Types |
+| Database ├── Catalog │   └── Schema ├── FileStorageEngine │   └── Row └── QueryExecutor     ├── Predicate     └── Vector Distance Schema, Row, and Predicate └── Types |
 | :---- |
 
 The `Database` acts as the top-level component and coordinates the catalog, storage engine, and query executor.
 
 **Dependency Rules:**
 
-- `types/` is the lowest-level module and should not depend on `database/`, `storage/`, or `query/`.  
-- `vector/` contains standalone vector operations and should not depend on `Database` or `StorageEngine`.  
-- `Catalog` manages schemas and table metadata.  
-- `StorageEngine` manages persisted rows.  
+- `types/` is the lowest-level module and should not depend on `database/`, `storage/`, or `query/`.
+- `vector/` contains standalone vector operations and should not depend on `Database` or `FileStorageEngine`.
+- `Catalog` manages schemas and table metadata.
+- `FileStorageEngine` manages persisted rows.
 - `QueryExecutor` handles predicates and uses the vector distance functions when evaluating vector conditions.
 
 This structure keeps the core components independent and helps prevent circular dependencies.
 
 # **Out of Scope for Milestone 1**
 
-SQL parser  
-JOIN  
-GROUP BY  
-aggregation  
-ORDER BY  
-transactions  
-WAL  
-concurrency control  
-NULL  
-foreign keys  
-primary keys  
-full-text search  
-vector ANN indexing  
+SQL parser
+JOIN
+GROUP BY
+aggregation
+ORDER BY
+transactions
+WAL
+concurrency control
+NULL
+foreign keys
+primary keys
+full-text search
+vector ANN indexing
 relational indexing
