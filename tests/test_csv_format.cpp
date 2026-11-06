@@ -65,7 +65,7 @@ int main() {
     std::stringstream counter;
     format.writeNextId(counter, 100);
     assert(format.readNextId(counter) == 100);
-    for (const std::string text : {"0", "-1", "2x", "18446744073709551616"}) {
+    for (const std::string text : {"0", "-1", "2x", "18446744073709551616", "5\ntrailing"}) {
         std::stringstream invalid{text};
         expectStorageError([&] { format.readNextId(invalid); });
     }

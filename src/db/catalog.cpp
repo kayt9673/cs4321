@@ -35,6 +35,11 @@ void Catalog::load(const FileStorageEngine& storage) {
 // Register a table schema and write only its catalog.
 void Catalog::createTable(const std::string& name, const Schema& schema, FileStorageEngine& storage) {
     validateString(name);
+    for (const auto& column : schema.columns()) {
+        if (column.name == "__vrdb_row_id" || column.name == "__vrdb_null_bitmap") {
+            throw SchemaError{"reserved physical column name: " + column.name};
+        }
+    }
     if (hasTable(name)) {
         throw DatabaseError{"table already exists: " + name};
     }

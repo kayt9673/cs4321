@@ -49,18 +49,19 @@ class GeneratorTest(unittest.TestCase):
             with (destination / "catalogs" / "documents.csv").open() as stream:
                 catalog = list(csv.reader(stream))
             self.assertEqual(catalog[0], ["table_name", "column_index", "column_name",
-                                          "data_type", "vector_dimension"])
+                                          "data_type", "vector_dimension", "nullable"])
             self.assertEqual(len(catalog), 4)
 
             selected = subprocess.run([CLI, str(destination), "select", "documents", "--csv"],
                                       check=True, capture_output=True, text=True)
             rows = list(csv.reader(io.StringIO(selected.stdout)))
-            self.assertEqual(rows[0], ["row_id", "id", "title", "embedding"])
+            self.assertEqual(rows[0], ["row_id", "__vrdb_null_bitmap", "id", "title", "embedding"])
             self.assertEqual(len(rows), 3)
             for document_id, row in enumerate(rows[1:], 1):
                 self.assertEqual(int(row[0]), document_id)
-                self.assertEqual(int(row[1]), document_id)
-                self.assertEqual(len(row[3][1:-1].split(",")), 384)
+                self.assertEqual(row[1], "000")
+                self.assertEqual(int(row[2]), document_id)
+                self.assertEqual(len(row[4][1:-1].split(",")), 384)
 
             original = table.read_bytes()
             self.assertNotEqual(subprocess.run(command, capture_output=True).returncode, 0)

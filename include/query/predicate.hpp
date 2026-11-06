@@ -38,7 +38,17 @@ struct VectorPredicate {
     double threshold;
 };
 
-using Predicate = std::variant<IntegerPredicate, TextPredicate, VectorPredicate>;
+enum class NullOperator { IS_NULL, IS_NOT_NULL };
+
+struct NullPredicate {
+    std::string column;
+    NullOperator op;
+};
+
+using Predicate = std::variant<IntegerPredicate, TextPredicate, VectorPredicate, NullPredicate>;
+
+Predicate isNull(std::string column);
+Predicate isNotNull(std::string column);
 
 // Build an integer comparison predicate for a named column.
 Predicate integerComparison(std::string column, ComparisonOperator op, int64_t value);

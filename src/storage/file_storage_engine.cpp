@@ -9,7 +9,45 @@
 #include <optional>
 #include <utility>
 
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 namespace vrdb {
+namespace {
+
+// Publish only complete files. Never remove the old destination before replacing it.
+void replaceFile(const std::filesystem::path& temporary, const std::filesystem::path& destination) {
+#if defined(_WIN32)
+    const bool exists{std::filesystem::exists(destination)};
+    const BOOL replaced{exists ? ReplaceFileW(destination.c_str(), temporary.c_str(), nullptr, 0, nullptr, nullptr)
+                               : MoveFileExW(temporary.c_str(), destination.c_str(), 0)};
+    if (!replaced) {
+        const auto error{GetLastError()};
+        throw StorageError{"failed to publish " + destination.string() +
+                           " (Windows error " + std::to_string(error) + ")"};
+    }
+#else
+    std::error_code error;
+    std::filesystem::rename(temporary, destination, error);
+    if (error) throw StorageError{"failed to publish " + destination.string() + ": " + error.message()};
+#endif
+}
+
+// Older files can retain a reservation from a previous, interrupted upgrade.
+RowId legacyHighWater(const std::filesystem::path& path, const CsvFormat& format, std::size_t rowCount) {
+    if (rowCount >= std::numeric_limits<RowId>::max() - 1) throw StorageError{"RowId space exhausted"};
+    const RowId minimum{static_cast<RowId>(rowCount) + 1};
+    if (!std::filesystem::exists(path)) return minimum;
+    std::ifstream file{path};
+    if (!file) throw StorageError{"failed to read RowId counter"};
+    return std::max(minimum, format.readNextId(file));
+}
+
+} // namespace
 
 struct TableCursor::Impl {
     std::ifstream file;
@@ -42,6 +80,9 @@ std::unique_ptr<Page> TableCursor::readNextPage(std::size_t maxRows) {
         })) {
         throw StorageError{"RowId counter does not exceed stored IDs for " + impl_->tableName};
     }
+    // An exhausted cursor no longer needs its handle. In particular, ordinary
+    // Windows input streams deny delete-sharing and would block table replacement.
+    if (impl_->reader.finished() && impl_->file.is_open()) impl_->file.close();
     auto page{std::make_unique<Page>(nextPageSequence_, maxRows)};
     for (auto& row : rows) {
         if (!page->addRow(std::move(row))) {
@@ -63,6 +104,11 @@ FileStorageEngine::FileStorageEngine(std::filesystem::path rootDirectory)
 
 // Create a table CSV file with its schema header.
 void FileStorageEngine::createTable(const std::string& tableName, const Schema& schema) {
+    for (const auto& column : schema.columns()) {
+        if (column.name == "__vrdb_row_id" || column.name == "__vrdb_null_bitmap") {
+            throw SchemaError{"reserved physical column name: " + column.name};
+        }
+    }
     if (std::filesystem::exists(tablePath(tableName)) || std::filesystem::exists(nextIdPath(tableName))) {
         throw StorageError{"table storage already exists for " + tableName};
     }
@@ -88,13 +134,13 @@ void FileStorageEngine::createTable(const std::string& tableName, const Schema& 
 RowId FileStorageEngine::appendRow(const std::string& tableName, const Schema& schema, const Row& row) {
     schema.validateRow(row);
     auto data{readTable(tableName, schema)};
-    const RowId id{data.legacy ? static_cast<RowId>(data.rows.size()) + 1 : readNextId(tableName)};
+    const RowId id{data.legacy ? legacyHighWater(nextIdPath(tableName), format_, data.rows.size()) : readNextId(tableName)};
     if (id == std::numeric_limits<RowId>::max()) {
         throw StorageError{"RowId space exhausted for " + tableName};
     }
     // Reserve the ID before writing the row; failed writes may skip IDs, never reuse them.
     writeNextId(tableName, id + 1);
-    if (data.legacy) {
+    if (data.needsUpgrade) {
         data.rows.push_back(StoredRow{id, row});
         writeTable(tableName, schema, data.rows);
         return id;
@@ -124,7 +170,7 @@ bool FileStorageEngine::updateRow(const std::string& tableName, const Schema& sc
         return false;
     }
     if (data.legacy) {
-        writeNextId(tableName, static_cast<RowId>(data.rows.size()) + 1);
+        writeNextId(tableName, legacyHighWater(nextIdPath(tableName), format_, data.rows.size()));
     }
     found->row = row;
     writeTable(tableName, schema, data.rows);
@@ -140,7 +186,7 @@ bool FileStorageEngine::deleteRow(const std::string& tableName, const Schema& sc
         return false;
     }
     if (data.legacy) {
-        writeNextId(tableName, static_cast<RowId>(data.rows.size()) + 1);
+        writeNextId(tableName, legacyHighWater(nextIdPath(tableName), format_, data.rows.size()));
     }
     data.rows.erase(found);
     writeTable(tableName, schema, data.rows);
@@ -208,7 +254,7 @@ void FileStorageEngine::writeTable(const std::string& tableName, const Schema& s
     if (!file) {
         throw StorageError{"failed to write updated table " + tableName};
     }
-    std::filesystem::rename(temporary, tablePath(tableName));
+    replaceFile(temporary, tablePath(tableName));
 }
 
 RowId FileStorageEngine::readNextId(const std::string& tableName) const {
@@ -220,6 +266,9 @@ RowId FileStorageEngine::readNextId(const std::string& tableName) const {
 }
 
 void FileStorageEngine::writeNextId(const std::string& tableName, RowId id) const {
+    if (std::filesystem::exists(nextIdPath(tableName))) {
+        id = std::max(id, readNextId(tableName));
+    }
     const auto temporary{nextIdPath(tableName).string() + ".tmp"};
     std::ofstream file{temporary, std::ios::trunc};
     if (!file) {
@@ -230,7 +279,7 @@ void FileStorageEngine::writeNextId(const std::string& tableName, RowId id) cons
     if (!file) {
         throw StorageError{"failed to write RowId counter for " + tableName};
     }
-    std::filesystem::rename(temporary, nextIdPath(tableName));
+    replaceFile(temporary, nextIdPath(tableName));
 }
 
 // Delete the table storage file or report a failure.
@@ -297,7 +346,7 @@ void FileStorageEngine::writeSchema(const std::string& tableName, const Schema& 
     if (!file) {
         throw StorageError{"failed to finish catalog for " + tableName};
     }
-    std::filesystem::rename(temporary, path);
+    replaceFile(temporary, path);
 }
 
 void FileStorageEngine::removeSchema(const std::string& tableName) {

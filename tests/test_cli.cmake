@@ -48,14 +48,14 @@ if(NOT CLI_OUTPUT MATCHES "hello_CSV")
 endif()
 
 run_cli(select documents --csv)
-if(NOT CLI_OUTPUT MATCHES "\"row_id\",\"id\",\"title\",\"embedding\"" OR
-   NOT CLI_OUTPUT MATCHES "\"1\",\"1\",\"hello_CSV\"")
+if(NOT CLI_OUTPUT MATCHES "\"row_id\",\"__vrdb_null_bitmap\",\"id\",\"title\",\"embedding\"" OR
+   NOT CLI_OUTPUT MATCHES "\"1\",\"000\",\"1\",\"hello_CSV\"")
     message(FATAL_ERROR "CSV output does not match logical table columns")
 endif()
 
 run_cli(update documents 1 1 "updated" "[0.1,-0.2,0.3]")
 run_cli(select documents --csv)
-if(NOT CLI_OUTPUT MATCHES "\"1\",\"1\",\"updated\"")
+if(NOT CLI_OUTPUT MATCHES "\"1\",\"000\",\"1\",\"updated\"")
     message(FATAL_ERROR "update was not persisted")
 endif()
 

@@ -7,8 +7,8 @@
 namespace vrdb {
 
 // Construct a column and validate its name, type, and dimension.
-Column::Column(std::string columnName, DataType columnType, std::size_t dimension)
-    : name{std::move(columnName)}, type{columnType}, vectorDimension{dimension} {
+Column::Column(std::string columnName, DataType columnType, std::size_t dimension, bool allowsNull)
+    : name{std::move(columnName)}, type{columnType}, vectorDimension{dimension}, nullable{allowsNull} {
     validate();
 }
 

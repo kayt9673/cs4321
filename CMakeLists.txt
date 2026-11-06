@@ -43,8 +43,18 @@ target_link_libraries(vrdb_query_benchmark PRIVATE vrdb)
 
 enable_testing()
 
+add_executable(test_null tests/test_null.cpp)
+target_link_libraries(test_null PRIVATE vrdb)
+add_test(NAME null COMMAND test_null)
+
 find_package(Python3 QUIET COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
+    add_test(
+        NAME null_cli
+        COMMAND ${Python3_EXECUTABLE}
+            ${PROJECT_SOURCE_DIR}/tests/test_null_cli.py
+            $<TARGET_FILE:vrdb_cli>
+    )
     add_test(
         NAME generator
         COMMAND ${Python3_EXECUTABLE}

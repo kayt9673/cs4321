@@ -44,7 +44,7 @@ void validatePredicate(const Predicate& predicate, std::size_t columnId, const S
             if (!isText(column.type)) {
                 throw QueryError{"text predicate references a non-text column: " + column.name};
             }
-        } else {
+        } else if constexpr (std::is_same_v<PredicateType, VectorPredicate>) {
             if (!isVector(column.type)) {
                 throw QueryError{"vector predicate references a non-vector column: " + column.name};
             }
@@ -54,6 +54,11 @@ void validatePredicate(const Predicate& predicate, std::size_t columnId, const S
                     "vector predicate for column '" + column.name + "' expects dimension " +
                     std::to_string(expectedDimension) + " but received " +
                     std::to_string(typedPredicate.referenceVector.size())};
+            }
+        } else if constexpr (std::is_same_v<PredicateType, NullPredicate>) {
+            if (typedPredicate.op != NullOperator::IS_NULL &&
+                typedPredicate.op != NullOperator::IS_NOT_NULL) {
+                throw QueryError{"unknown NULL predicate operator"};
             }
         }
     }, predicate);
@@ -208,9 +213,16 @@ QueryResult QueryExecutor::execute(const Query& query, const Schema& schema,
 
 // Evaluate one typed predicate against a row cell.
 bool QueryExecutor::evaluatePredicate(const Predicate& predicate, std::size_t column, const Row& row) const {
+    const auto& cell{row.cell(column)};
+    if (cell.valueless_by_exception()) throw QueryError{"valueless row cell"};
+    if (isNullCell(cell) && !std::holds_alternative<NullPredicate>(predicate)) return false;
     return std::visit([&](const auto& typedPredicate) -> bool {
         using PredicateType = std::decay_t<decltype(typedPredicate)>;
-        if constexpr (std::is_same_v<PredicateType, IntegerPredicate>) {
+        if constexpr (std::is_same_v<PredicateType, NullPredicate>) {
+            if (typedPredicate.op == NullOperator::IS_NULL) return isNullCell(cell);
+            if (typedPredicate.op == NullOperator::IS_NOT_NULL) return !isNullCell(cell);
+            throw QueryError{"unknown NULL predicate operator"};
+        } else if constexpr (std::is_same_v<PredicateType, IntegerPredicate>) {
             const auto* value{std::get_if<std::int64_t>(&row.cell(column))};
             if (!value) {
                 throw QueryError{"row cell is not an integer"};
@@ -222,7 +234,7 @@ bool QueryExecutor::evaluatePredicate(const Predicate& predicate, std::size_t co
                 throw QueryError{"row cell is not text"};
             }
             return evaluateTextComparison(*value, typedPredicate.op, typedPredicate.value);
-        } else {
+        } else if constexpr (std::is_same_v<PredicateType, VectorPredicate>) {
             const auto* value{std::get_if<std::vector<float>>(&row.cell(column))};
             if (!value) {
                 throw QueryError{"row cell is not a vector"};

@@ -49,6 +49,14 @@ development format.
 - Schemas preserve column order, require at least one column, require unique
   non-empty column names, and require vector dimensions only for vector columns.
 - Rows are validated against schemas for width, type, and vector dimension.
+- Newly constructed columns allow NULL by default, including existing C++ calls
+  that construct new `Column` objects. Pass a fourth constructor argument of
+  `false` for NOT NULL: `Column{"id", DataType::INTEGER, 0, false}`.
+  Old five-field catalogs load as NOT NULL; storage upgrades do not relax them.
+- Use `nullCell()` for a missing value and `isNullCell(cell)` to inspect it.
+  NULL differs from empty TEXT, literal `NULL`, and a valueless variant.
+  Default-constructed `Cell{}` remains integer zero. Whole vectors can be NULL;
+  individual coordinates cannot.
 - Inserts validate rows and return a persistent `RowId`. `update(table, id, row)`
   replaces a whole logical row, and `erase(table, id)` removes it. Missing IDs
   fail clearly; logical user columns named `id` do not determine `RowId`.
@@ -64,6 +72,9 @@ development format.
   sequential execution for comparisons and low-overhead workloads.
 - Errors use the following exception hierarchy: `DatabaseError`,
   `SchemaError`, `StorageError`, and `QueryError`.
+- `isNull("column")` and `isNotNull("column")` work for every column type.
+  All typed comparisons on NULL, including inequality and vector distance,
+  are non-matches under the current AND-only filtering model.
 - Column names are case-sensitive. Table names are case-sensitive identifiers
   containing letters, digits, and underscores, and must not begin with a digit.
 
@@ -83,8 +94,9 @@ my_database/
 ```
 
 Each catalog CSV stores its table name, column order, logical types, and vector
-dimensions. Each table CSV has a leading `__vrdb_row_id` physical column,
-then the logical schema columns. A small `.nextid` sidecar records the next
+dimensions and nullability. Each table CSV has leading `__vrdb_row_id` and
+`__vrdb_null_bitmap` physical columns, then the logical schema columns.
+A small `.nextid` sidecar records the next
 internal ID so deleting the newest row cannot cause ID reuse. TEXT
 values may contain spaces, punctuation, and newlines; empty strings are allowed.
 A vector is stored in one CSV field such as `"[0.1,-0.2,0.3]"`.
@@ -125,9 +137,33 @@ exercise catalog and row recovery. `insert` prints the allocated `RowId`;
 values in one row, in schema order, and `delete` removes one row by `RowId`.
 On a terminal, headings and status messages use ANSI colors; colors are disabled
 when output is redirected, `NO_COLOR` is set, or `TERM=dumb`. `select --csv`
-emits machine-readable CSV (including `row_id`) without table decoration.
+emits lossless database CSV (including `row_id` and `__vrdb_null_bitmap`)
+without table decoration. The table reader accepts this export when supplied
+with its corresponding schema; the export does not contain catalog metadata.
 Rich predicates remain available through the C++ `Query` API; the CLI does
 not include a SQL parser or interactive REPL yet.
+
+Append `:NOT_NULL` to a CLI column declaration to disallow NULL, for example
+`id:INTEGER:NOT_NULL`. Insert/update arguments use exact `\N` for NULL. For
+TEXT beginning with a backslash, supply an extra leading backslash: `'\\N'`
+stores literal `\N`, while `'\N'` stores NULL. Single-quote these arguments
+in PowerShell or a POSIX shell. Ordinary `NULL` stores text. `describe` shows
+nullability, and terminal output distinguishes NULL from literal text `"NULL"`.
+Rows must still provide every column value. There is no schema-alteration API
+for enabling NULL on existing NOT NULL tables in this change.
+
+For example, the C++ API accepts:
+
+```cpp
+Schema schema{{Column{"id", DataType::INTEGER, 0, false},
+               Column{"title", DataType::TEXT}}};
+db.createTable("notes", schema);
+db.insert("notes", Row{{std::int64_t{1}, nullCell()}});
+Query query{};
+query.table = "notes";
+query.predicates = {isNull("title")};
+auto result = db.select(query);
+```
 
 The separate `vrdb_demo` executable remains as a hard-coded API example.
 

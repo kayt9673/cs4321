@@ -76,6 +76,16 @@ std::optional<std::size_t> Schema::columnId(std::string_view name) const {
 void Schema::validateCell(std::size_t columnId, const Cell& cell) const {
     const auto& expectedColumn{column(columnId)};
 
+    if (cell.valueless_by_exception()) {
+        throw SchemaError{"valueless cell in column '" + expectedColumn.name + "'"};
+    }
+    if (isNullCell(cell)) {
+        if (!expectedColumn.nullable) {
+            throw SchemaError{"column '" + expectedColumn.name + "' is NOT NULL"};
+        }
+        return;
+    }
+
     const auto actualType{cellTypeName(cell)};
     const bool correctType{expectedColumn.type == actualType};
 
