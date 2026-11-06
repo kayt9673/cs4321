@@ -19,7 +19,8 @@ public:
 
     struct TableData {
         std::vector<StoredRow> rows;
-        bool legacy;
+        bool legacy;       // No physical RowIds: identities are synthesized.
+        bool needsUpgrade; // No NULL bitmap; independent of RowId presence.
     };
 
     // Maintain parsing state while a table is consumed in bounded batches.
@@ -35,6 +36,7 @@ public:
         std::vector<StoredRow> readNext(std::size_t maxRows);
         bool finished() const;
         bool legacy() const;
+        bool needsUpgrade() const;
 
     private:
         struct Impl;

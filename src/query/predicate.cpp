@@ -6,6 +6,14 @@
 
 namespace vrdb {
 
+Predicate isNull(std::string column) {
+    return NullPredicate{std::move(column), NullOperator::IS_NULL};
+}
+
+Predicate isNotNull(std::string column) {
+    return NullPredicate{std::move(column), NullOperator::IS_NOT_NULL};
+}
+
 // Build an integer comparison predicate for a named column.
 Predicate integerComparison(std::string column, ComparisonOperator op, int64_t value) {
     return IntegerPredicate{std::move(column), op, value};

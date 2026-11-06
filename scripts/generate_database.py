@@ -15,13 +15,13 @@ from pathlib import Path
 
 DIMENSION = 384
 BATCH_BYTES = 8 * 1024 * 1024
-HEADER = b'"id","title","embedding"\n'
+HEADER = b'"__vrdb_row_id","__vrdb_null_bitmap","id","title","embedding"\n'
 
 
 # Encode one synthetic CSV row, optionally padding its title to fill the target size.
 def row_bytes(document_id, embedding, padding=0):
     title = f"document_{document_id:012d}".ljust(128, "x") + "x" * padding
-    return f'"{document_id:012d}","{title}","{embedding}"\n'.encode("ascii")
+    return f'"{document_id:012d}","000","{document_id:012d}","{title}","{embedding}"\n'.encode("ascii")
 
 
 # Write an exact-sized table and its catalog without overwriting existing data.
@@ -44,10 +44,10 @@ def generate(destination, target_bytes):
     with (partial / "catalogs" / "documents.csv").open("w", newline="") as stream:
         writer = csv.writer(stream, quoting=csv.QUOTE_ALL, lineterminator="\n")
         writer.writerows([
-            ["table_name", "column_index", "column_name", "data_type", "vector_dimension"],
-            ["documents", 0, "id", "INTEGER", ""],
-            ["documents", 1, "title", "TEXT", ""],
-            ["documents", 2, "embedding", "VECTOR", DIMENSION],
+            ["table_name", "column_index", "column_name", "data_type", "vector_dimension", "nullable"],
+            ["documents", 0, "id", "INTEGER", "", "false"],
+            ["documents", 1, "title", "TEXT", "", "true"],
+            ["documents", 2, "embedding", "VECTOR", DIMENSION, "true"],
         ])
 
     rows_per_batch = max(1, BATCH_BYTES // row_size)
@@ -62,6 +62,7 @@ def generate(destination, target_bytes):
             stream.write(batch)
     if table.stat().st_size != target_bytes:
         raise RuntimeError("generated table size does not match requested size")
+    (partial / "tables" / "documents.nextid").write_text(f"{row_count + 1}\n", encoding="ascii")
     if destination.exists():
         raise ValueError(f"destination appeared during generation: {destination}")
     partial.rename(destination)

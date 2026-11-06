@@ -33,7 +33,8 @@ void printUsage(std::ostream& output) {
         << "  vrdb_cli <database-directory> update <table> <row-id> <value>...\n"
         << "  vrdb_cli <database-directory> delete <table> <row-id>\n"
         << "  vrdb_cli <database-directory> select <table> [--csv]\n\n"
-        << "Column types: INTEGER, TEXT, VECTOR(n)\n"
+        << "Column types: INTEGER, TEXT, VECTOR(n); append :NOT_NULL to disallow NULL\n"
+        << "NULL cells: \\N; escape leading TEXT backslashes with an extra backslash\n"
         << "Vector cells: [0.1,0.2,0.3]\n";
 }
 
@@ -78,16 +79,22 @@ vrdb::Column parseColumn(const std::string& specification) {
         throw std::invalid_argument{"invalid column specification: " + specification};
     }
     const auto name{specification.substr(0, separator)};
-    const auto type{uppercase(specification.substr(separator + 1))};
+    auto type{uppercase(specification.substr(separator + 1))};
+    bool nullable{true};
+    constexpr std::string_view suffix{":NOT_NULL"};
+    if (type.size() >= suffix.size() && type.compare(type.size() - suffix.size(), suffix.size(), suffix) == 0) {
+        type.resize(type.size() - suffix.size());
+        nullable = false;
+    }
     if (type == "INTEGER") {
-        return vrdb::Column{name, vrdb::DataType::INTEGER};
+        return vrdb::Column{name, vrdb::DataType::INTEGER, 0, nullable};
     }
     if (type == "TEXT") {
-        return vrdb::Column{name, vrdb::DataType::TEXT};
+        return vrdb::Column{name, vrdb::DataType::TEXT, 0, nullable};
     }
     if (type.size() > 8 && type.rfind("VECTOR(", 0) == 0 && type.back() == ')') {
         return vrdb::Column{name, vrdb::DataType::VECTOR,
-                            parseSize(type.substr(7, type.size() - 8), "vector dimension")};
+                            parseSize(type.substr(7, type.size() - 8), "vector dimension"), nullable};
     }
     throw std::invalid_argument{"unknown column type: " + type};
 }
@@ -127,6 +134,7 @@ std::vector<float> parseVector(const std::string& input) {
 
 // Parse a CLI cell according to its column type.
 vrdb::Cell parseCell(const std::string& input, const vrdb::Column& column) {
+    if (input == "\\N") return vrdb::nullCell();
     if (vrdb::isInteger(column.type)) {
         try {
             std::size_t parsed{0};
@@ -140,6 +148,12 @@ vrdb::Cell parseCell(const std::string& input, const vrdb::Column& column) {
         }
     }
     if (vrdb::isText(column.type)) {
+        if (!input.empty() && input.front() == '\\') {
+            if (input.size() < 2 || input[1] != '\\') {
+                throw std::invalid_argument{"escape a leading TEXT backslash with another backslash"};
+            }
+            return input.substr(1);
+        }
         return input;
     }
     return parseVector(input);
@@ -275,9 +289,9 @@ void printSchema(const vrdb::Schema& schema) {
         if (vrdb::isVector(column.type)) {
             type += '(' + std::to_string(column.vectorDimension) + ')';
         }
-        rows.push_back({column.name, type});
+        rows.push_back({column.name, type, column.nullable ? "YES" : "NO"});
     }
-    printTable({"column", "type"}, rows);
+    printTable({"column", "type", "nullable"}, rows);
 }
 
 // Print result cells as CSV or an aligned table.
@@ -287,10 +301,22 @@ void printQueryResult(const vrdb::QueryResult& result, bool csv) {
     for (const auto& column : result.schema.columns()) {
         header.push_back(column.name);
     }
+    if (csv) header.insert(header.begin() + 1, "__vrdb_null_bitmap");
     std::vector<std::vector<std::string>> rows{};
     rows.reserve(result.rows.size());
     for (std::size_t index{0}; index < result.rows.size(); ++index) {
         auto fields{vrdb::serializeRowForCsv(result.rows[index])};
+        if (csv) {
+            fields.insert(fields.begin(), vrdb::serializeNullBitmap(result.rows[index]));
+        } else {
+            for (std::size_t cellIndex{0}; cellIndex < result.rows[index].size(); ++cellIndex) {
+                const auto& cell{result.rows[index].cell(cellIndex)};
+                if (vrdb::isNullCell(cell)) fields[cellIndex] = "NULL";
+                else if (const auto* text = std::get_if<std::string>(&cell); text && *text == "NULL") {
+                    fields[cellIndex] = "\"NULL\"";
+                }
+            }
+        }
         fields.insert(fields.begin(), std::to_string(result.rowIds[index]));
         rows.push_back(std::move(fields));
     }

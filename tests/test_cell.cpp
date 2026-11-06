@@ -12,7 +12,7 @@ int main() {
     using namespace vrdb;
 
     static_assert(!std::is_constructible_v<Cell, double>);
-    static_assert(std::is_same_v<Cell, std::variant<std::int64_t, std::string, std::vector<float>>>);
+    static_assert(std::is_same_v<Cell, std::variant<std::int64_t, std::string, std::vector<float>, std::monostate>>);
 
     const Cell integer{std::int64_t{7}};
     const Cell text{std::string{"hello_World_0123456789"}};

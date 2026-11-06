@@ -134,6 +134,8 @@ bool readCsvRecord(std::istream& input, std::vector<std::string>& fields) {
 
 // Encode a cell as text, preserving float precision in vectors.
 std::string serializeCellForCsv(const Cell& cell) {
+    if (cell.valueless_by_exception()) throw StorageError{"cannot serialize a valueless cell"};
+    if (isNullCell(cell)) return {};
     const auto type{cellTypeName(cell)};
     if (type == DataType::INTEGER) {
         return std::to_string(std::get<std::int64_t>(cell));
@@ -142,6 +144,7 @@ std::string serializeCellForCsv(const Cell& cell) {
         return std::get<std::string>(cell);
     }
 
+    if (type != DataType::VECTOR) throw StorageError{"unknown cell type"};
     const auto& vector{std::get<std::vector<float>>(cell)};
     std::ostringstream output{};
     output << std::setprecision(std::numeric_limits<float>::max_digits10) << '[';
@@ -172,7 +175,8 @@ Cell deserializeCellFromCsv(const std::string& field, const Column& column) {
     if (isText(column.type)) {
         return field;
     }
-    return parseVector(field, column);
+    if (isVector(column.type)) return parseVector(field, column);
+    throw StorageError{"unknown column type: " + column.name};
 }
 
 // Encode each row cell as a CSV field.
@@ -186,21 +190,46 @@ std::vector<std::string> serializeRowForCsv(const Row& row) {
 }
 
 // Check field count and decode a row using its schema.
-Row deserializeRowFromCsv(const std::vector<std::string>& fields, const Schema& schema) {
+std::string serializeNullBitmap(const Row& row) {
+    std::string bitmap;
+    bitmap.reserve(row.size());
+    for (const auto& cell : row.cells()) {
+        if (cell.valueless_by_exception()) throw StorageError{"cannot serialize a valueless cell"};
+        bitmap.push_back(isNullCell(cell) ? '1' : '0');
+    }
+    return bitmap;
+}
+
+Row deserializeRowFromCsv(const std::vector<std::string>& fields, const Schema& schema,
+                          std::string_view nullBitmap) {
     if (fields.size() != schema.size()) {
         throw StorageError{
             "stored row expects " + std::to_string(schema.size()) + " fields but received " +
             std::to_string(fields.size())};
     }
 
+    if (!nullBitmap.empty() &&
+        (nullBitmap.size() != schema.size() || nullBitmap.find_first_not_of("01") != std::string_view::npos)) {
+        throw StorageError{"invalid NULL bitmap"};
+    }
+
     std::vector<Cell> cells{};
     cells.reserve(fields.size());
     for (std::size_t index{0}; index < fields.size(); ++index) {
-        cells.push_back(deserializeCellFromCsv(fields[index], schema.column(index)));
+        if (!nullBitmap.empty() && nullBitmap[index] == '1') {
+            if (!fields[index].empty()) throw StorageError{"NULL payload must be empty"};
+            cells.push_back(nullCell());
+        } else {
+            cells.push_back(deserializeCellFromCsv(fields[index], schema.column(index)));
+        }
     }
 
     Row row{std::move(cells)};
-    schema.validateRow(row);
+    try {
+        schema.validateRow(row);
+    } catch (const SchemaError& error) {
+        throw StorageError{error.what()};
+    }
     return row;
 }
 

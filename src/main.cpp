@@ -19,7 +19,10 @@ int main() {
         textComparison("title", ComparisonOperator::EQUAL, title));
 
     const auto result{db.select(query)};
+    writeCsvRecord(std::cout, {"__vrdb_null_bitmap", "id", "title"});
     for (const auto& row : result.rows) {
-        writeCsvRecord(std::cout, serializeRowForCsv(row));
+        auto fields{serializeRowForCsv(row)};
+        fields.insert(fields.begin(), serializeNullBitmap(row));
+        writeCsvRecord(std::cout, fields);
     }
 }
