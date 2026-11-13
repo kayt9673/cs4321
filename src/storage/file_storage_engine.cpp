@@ -1,6 +1,8 @@
 #include "storage/file_storage_engine.hpp"
 
 #include "db/errors.hpp"
+#include "db/catalog.hpp"
+#include "storage/index_format.hpp"
 
 #include <algorithm>
 #include <fstream>
@@ -354,6 +356,52 @@ void FileStorageEngine::removeSchema(const std::string& tableName) {
     std::error_code error{};
     if (!std::filesystem::remove(path, error) || error) {
         throw StorageError{"failed to remove catalog " + path.string()};
+    }
+}
+
+std::vector<VectorIndexDefinition> FileStorageEngine::readIndexDefinitions() const {
+    const auto directory{rootDirectory_ / "indexes"};
+    std::vector<VectorIndexDefinition> definitions;
+    if (!std::filesystem::exists(directory)) return definitions;
+    for (const auto& entry : std::filesystem::directory_iterator{directory}) {
+        if (!entry.is_regular_file() || entry.path().extension() != ".csv") continue;
+        try {
+            std::ifstream input{entry.path()};
+            if (!input) throw StorageError{"cannot open index definition"};
+            auto definition{IndexFormat::read(input)};
+            Catalog::validateString(definition.name);
+            if (entry.path().stem().string() != definition.name) {
+                throw StorageError{"index filename does not match definition name"};
+            }
+            definitions.push_back(std::move(definition));
+        } catch (const DatabaseError& error) {
+            throw StorageError{"index definition '" + entry.path().string() + "': " + error.what()};
+        }
+    }
+    return definitions;
+}
+
+void FileStorageEngine::writeIndexDefinition(const VectorIndexDefinition& definition) {
+    Catalog::validateString(definition.name);
+    const auto directory{rootDirectory_ / "indexes"};
+    std::filesystem::create_directories(directory);
+    const auto path{directory / (definition.name + ".csv")};
+    if (std::filesystem::exists(path)) throw StorageError{"index definition already exists: " + definition.name};
+    const auto temporary{path.string() + ".tmp"};
+    std::ofstream output{temporary, std::ios::trunc};
+    if (!output) throw StorageError{"cannot write index definition: " + definition.name};
+    IndexFormat::write(output, definition);
+    output.close();
+    if (!output) throw StorageError{"failed to write index definition: " + definition.name};
+    replaceFile(temporary, path);
+}
+
+void FileStorageEngine::removeIndexDefinition(const std::string& name) {
+    Catalog::validateString(name);
+    std::error_code error;
+    const auto path{rootDirectory_ / "indexes" / (name + ".csv")};
+    if (!std::filesystem::remove(path, error) || error) {
+        throw StorageError{"failed to remove index definition: " + name};
     }
 }
 

@@ -2,6 +2,7 @@
 
 #include "storage/csv_format.hpp"
 #include "storage/page.hpp"
+#include "vector/index.hpp"
 
 #include <filesystem>
 #include <memory>
@@ -51,6 +52,10 @@ public:
     Schema readSchema(const std::string& tableName) const;
     void writeSchema(const std::string& tableName, const Schema& schema);
     void removeSchema(const std::string& tableName);
+
+    std::vector<VectorIndexDefinition> readIndexDefinitions() const;
+    void writeIndexDefinition(const VectorIndexDefinition& definition);
+    void removeIndexDefinition(const std::string& name);
 
 private:
     CsvFormat::TableData readTable(const std::string& tableName, const Schema& schema) const;

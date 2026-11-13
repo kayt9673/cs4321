@@ -100,6 +100,7 @@ void collectBatch(QueryResult batch, const Query& query,
 DatabaseManager::DatabaseManager(const std::filesystem::path& storagePath)
     : storage_{storagePath} {
     catalog_.load(storage_);
+    indexes_.load(catalog_, storage_);
 }
 
 // Create a table and persist its schema and storage.
@@ -122,6 +123,7 @@ void DatabaseManager::dropTable(const std::string& name) {
     if (!catalog_.hasTable(name)) {
         throw DatabaseError{"unknown table: " + name};
     }
+    indexes_.dropTable(name, storage_);
     storage_.dropTable(name);
     catalog_.dropTable(name, storage_);
 }
@@ -129,11 +131,13 @@ void DatabaseManager::dropTable(const std::string& name) {
 // Validate and append a row to the named table.
 RowId DatabaseManager::insert(const std::string& tableName, const Row& row) {
     const auto& schema{catalog_.getSchema(tableName)};
+    indexes_.invalidate(tableName);
     return storage_.appendRow(tableName, schema, row);
 }
 
 void DatabaseManager::update(const std::string& tableName, RowId id, const Row& row) {
     const auto& schema{catalog_.getSchema(tableName)};
+    indexes_.invalidate(tableName);
     if (!storage_.updateRow(tableName, schema, id, row)) {
         throw DatabaseError{"unknown RowId " + std::to_string(id) + " in table " + tableName};
     }
@@ -141,6 +145,7 @@ void DatabaseManager::update(const std::string& tableName, RowId id, const Row& 
 
 void DatabaseManager::erase(const std::string& tableName, RowId id) {
     const auto& schema{catalog_.getSchema(tableName)};
+    indexes_.invalidate(tableName);
     if (!storage_.deleteRow(tableName, schema, id)) {
         throw DatabaseError{"unknown RowId " + std::to_string(id) + " in table " + tableName};
     }

@@ -10,11 +10,6 @@
 namespace vrdb {
 namespace {
 
-struct ResolvedPredicate {
-    std::size_t column;
-    const Predicate* predicate;
-};
-
 // Resolve a column name or report an unknown-column query error.
 std::size_t requireColumn(const Schema& schema, std::string_view name) {
     const auto id{schema.columnId(name)};
@@ -66,135 +61,46 @@ void validatePredicate(const Predicate& predicate, std::size_t columnId, const S
 
 } // namespace
 
-QueryExecutor::State QueryExecutor::begin(const Query& query, const Schema& schema) const {
-    std::vector<std::size_t> projection{};
-    projection.reserve(query.projection.size());
-    std::unordered_set<std::size_t> projectedColumns{};
-
-    for (const auto& columnName : query.projection) {
-        // think we are doing double checks here but this is okay for now
-        const auto id{requireColumn(schema, columnName)};
-        if (!projectedColumns.insert(id).second) {
-            throw QueryError{"duplicate projected column: " + columnName};
-        }
-        projection.push_back(id);
+QueryExecutor::Prepared QueryExecutor::prepare(const Query& query, const Schema& schema) const {
+    Prepared prepared;
+    std::unordered_set<std::size_t> projectedColumns;
+    for (const auto& name : query.projection) {
+        const auto id{requireColumn(schema, name)};
+        if (!projectedColumns.insert(id).second) throw QueryError{"duplicate projected column: " + name};
+        prepared.projection.push_back(id);
     }
-
-    std::vector<ResolvedPredicate> predicates{};
-    predicates.reserve(query.predicates.size());
     for (const auto& predicate : query.predicates) {
         const auto id{requireColumn(schema, predicateColumnName(predicate))};
         validatePredicate(predicate, id, schema);
-        predicates.push_back(ResolvedPredicate{id, &predicate});
+        prepared.predicates.emplace_back(id, &predicate);
     }
+    return prepared;
+}
 
-    State state{QueryResult{projectSchema(schema, projection), {}, {}}, 0, false};
-    if (query.limit && *query.limit == 0) {
-        state.complete = true;
+bool QueryExecutor::matches(const Prepared& prepared, const Row& row) const {
+    for (const auto& [column, predicate] : prepared.predicates) {
+        if (!evaluatePredicate(*predicate, column, row)) return false;
     }
-    return state;
+    return true;
+}
+
+QueryExecutor::State QueryExecutor::begin(const Query& query, const Schema& schema) const {
+    const auto prepared{prepare(query, schema)};
+    return State{QueryResult{projectSchema(schema, prepared.projection), {}, {}}, 0,
+                 query.limit && *query.limit == 0};
 }
 
 void QueryExecutor::executeBatch(const Query& query, const Schema& schema,
                                  const std::vector<StoredRow>& rows, State& state) const {
     if (state.complete) return;
-
-    std::vector<std::size_t> projection{};
-    projection.reserve(query.projection.size());
-    std::unordered_set<std::size_t> projectedColumns{};
-    for (const auto& columnName : query.projection) {
-        const auto id{requireColumn(schema, columnName)};
-        if (!projectedColumns.insert(id).second) {
-            throw QueryError{"duplicate projected column: " + columnName};
-        }
-        projection.push_back(id);
-    }
-
-    std::vector<ResolvedPredicate> predicates{};
-    predicates.reserve(query.predicates.size());
-    for (const auto& predicate : query.predicates) {
-        const auto id{requireColumn(schema, predicateColumnName(predicate))};
-        validatePredicate(predicate, id, schema);
-        predicates.push_back(ResolvedPredicate{id, &predicate});
-    }
-
-    // Parallel-filtering alternative (requires C++20, Threads::Threads, and
-    // <algorithm>, <exception>, and <thread>). Replace the sequential scan below
-    // when enabling this code; merge matches in chunk order and apply offset,
-    // limit, and projection afterward. Unlike the current scan, this evaluates
-    // every row even when a limit could stop the query early.
-    /*
-    if (rows.empty()) {
-        return result;
-    }
-
-    const auto workerCount{
-        std::min(rows.size(),
-                 std::size_t{std::max(1u, std::thread::hardware_concurrency())})
-    };
-
-    std::vector<std::vector<std::size_t>> matches(workerCount);
-    std::vector<std::exception_ptr> errors(workerCount);
-
-    {
-        std::vector<std::jthread> workers{};
-        workers.reserve(workerCount);
-
-        for (std::size_t worker{0}; worker < workerCount; ++worker) {
-            const auto begin{worker * rows.size() / workerCount};
-            const auto end{(worker + 1) * rows.size() / workerCount};
-
-            workers.emplace_back([&, worker, begin, end] {
-                try {
-                    for (auto index{begin}; index < end; ++index) {
-                        bool include{true};
-
-                        for (const auto& resolved : predicates) {
-                            if (!evaluatePredicate(
-                                    *resolved.predicate,
-                                    resolved.column,
-                                    rows[index].row)) {
-                                include = false;
-                                break;
-                            }
-                        }
-
-                        if (include) {
-                            matches[worker].push_back(index);
-                        }
-                    }
-                } catch (...) {
-                    errors[worker] = std::current_exception();
-                }
-            });
-        }
-    } // jthread destructors join every worker
-
-    for (const auto& error : errors) {
-        if (error) {
-            std::rethrow_exception(error);
-        }
-    }
-    */
-
+    const auto prepared{prepare(query, schema)};
     for (const auto& stored : rows) {
-        const auto& row{stored.row};
-        bool include{true};
-        for (const auto& resolved : predicates) {
-            if (!evaluatePredicate(*resolved.predicate, resolved.column, row)) {
-                include = false;
-                break;
-            }
-        }
-        if (!include) {
-            continue;
-        }
+        if (!matches(prepared, stored.row)) continue;
         if (state.skipped < query.offset) {
             ++state.skipped;
             continue;
         }
-
-        state.result.rows.push_back(projectRow(row, projection));
+        state.result.rows.push_back(projectRow(stored.row, prepared.projection));
         state.result.rowIds.push_back(stored.id);
         if (query.limit && state.result.rows.size() >= *query.limit) {
             state.complete = true;
