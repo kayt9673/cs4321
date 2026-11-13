@@ -1,180 +1,256 @@
 # Vector-Relational Database
 
-This project is the starting point for a persistent database implemented
-from scratch in C++. The long-term goal is to support relational columns and
-vector columns in the same table, enabling queries that combine ordinary integer
-predicates with vector-distance predicates.
+A persistent C++20 database for tables that combine relational values and vector
+embeddings. It supports exact filtering, exact nearest-neighbor search, and
+approximate nearest-neighbor search through HNSW indexes.
 
-The project does not include a SQL parser, indexing algorithms,
-transactions, joins, or an external database dependency yet.
+Use the C++ API for queries and index management, or the CLI for basic table and
+row operations. Data is stored locally as CSV; no database server is required.
 
-## Current Architecture
+## Current capabilities
 
-- `DatabaseManager`: top-level API for creating tables and inserting, updating,
-  deleting, and reading persisted rows.
-- `Catalog`: table names and schemas, persisted through `FileStorageEngine`.
-  It does not know file paths or CSV layout.
-- `FileStorageEngine`: manages the database's `tables/` and `catalogs/`
-  directories, row mutations, file replacement, and sequential table cursors.
-- `Page`: a capacity-bounded, mutex-protected owner for one ordered batch of
-  stored rows passed from table cursors to query workers.
-- `CsvFormat`: encodes tables, schemas, and ID counters using input/output
-  streams. `FileStorageEngine` owns a format object and calls it for encoding.
-- `storage/serialization`: the existing CSV record, cell, vector, and data-type
-  helpers used by `CsvFormat` and CLI output.
-- `Schema`, `Column`, `Row`, and `Cell`: validated logical data model.
-  `DataType` is an enum; `Column` carries a positive vector dimension only for
-  `VECTOR` columns.
-- Column indices use `std::size_t` and schemas resolve names to indices through
-  a map; `StoredRow` keeps physical identity separate from logical values.
-  `QueryResult::rowIds` corresponds positionally to its rows.
-- `Predicate`, `Query`, `QueryResult`, and `QueryExecutor`: programmatic query
-  representation and batched scan execution with projection, offset, limit,
-  integer predicates, text equality predicates, and vector-distance predicates.
-- `vector/distance`: Euclidean and cosine distance utilities with dimension
-  validation.
+| Area | Supported today |
+| --- | --- |
+| Tables | Create, list, inspect, and drop tables; persist schemas across restarts |
+| Data types | `INTEGER` (`int64_t`), `TEXT` (`std::string`), and fixed-dimension `VECTOR(n)` (`std::vector<float>`) |
+| Rows | Insert, read, replace, and delete rows using persistent internal `RowId`s |
+| NULL values | Nullable columns, explicit NOT NULL constraints, `isNull`, and `isNotNull` |
+| Filtering | Integer comparisons, text equality/inequality, and vector-distance comparisons, combined with AND |
+| Scan queries | Column projection, offset, and limit; bounded batches and optional parallel filtering that preserves table order |
+| Vector search | Euclidean and cosine distance; exact top-k search and optional HNSW acceleration |
+| Vector indexes | Create, list, and drop indexes; persisted definitions and automatic rebuilding after writes |
+| Tools | CLI, C++ demo, synthetic database generator, query benchmarks, and CTest suite |
 
-`DatabaseManager` owns a `FileStorageEngine`, and `Catalog` receives that storage
-object for each persistence operation. CSV remains a simple, inspectable
-development format.
+Tables can contain multiple vector columns with different dimensions. Rows are
+validated against their schemas. A user-defined column named `id` is independent
+of the internal `RowId` returned by inserts.
 
-## Milestone 1 Functionality
+## Build and test
 
-- Database startup creates the database directory, initializes file storage
-  under `tables/`, initializes `Catalog`, and loads existing table metadata.
-- Table metadata is persisted in `catalogs/<table>.csv`; table row files alone do not
-  define recognized tables.
-- Supported column/value types are `INTEGER` (`int64_t`), `TEXT`
-  (`std::string`), and `VECTOR(n)` (`std::vector<float>`).
-- Schemas preserve column order, require at least one column, require unique
-  non-empty column names, and require vector dimensions only for vector columns.
-- Rows are validated against schemas for width, type, and vector dimension.
-- Newly constructed columns allow NULL by default, including existing C++ calls
-  that construct new `Column` objects. Pass a fourth constructor argument of
-  `false` for NOT NULL: `Column{"id", DataType::INTEGER, 0, false}`.
-  Old five-field catalogs load as NOT NULL; storage upgrades do not relax them.
-- Use `nullCell()` for a missing value and `isNullCell(cell)` to inspect it.
-  NULL differs from empty TEXT, literal `NULL`, and a valueless variant.
-  Default-constructed `Cell{}` remains integer zero. Whole vectors can be NULL;
-  individual coordinates cannot.
-- Inserts validate rows and return a persistent `RowId`. `update(table, id, row)`
-  replaces a whole logical row, and `erase(table, id)` removes it. Missing IDs
-  fail clearly; logical user columns named `id` do not determine `RowId`.
-- Queries are programmatic `Query` objects with table name, projection,
-  predicates, optional limit, and offset.
-- Empty projection means all columns; non-empty projection returns a projected
-  `QueryResult` schema and projected rows.
-- Predicates use AND semantics and support integer comparison, text equality
-  and inequality, and vector distance comparisons for Euclidean or cosine
-  distance.
-- Query execution reads persisted rows in bounded batches and can evaluate batches
-  on a bounded worker pool while preserving table order. One-worker mode provides
-  sequential execution for comparisons and low-overhead workloads.
-- Errors use the following exception hierarchy: `DatabaseError`,
-  `SchemaError`, `StorageError`, and `QueryError`.
-- `isNull("column")` and `isNotNull("column")` work for every column type.
-  All typed comparisons on NULL, including inequality and vector distance,
-  are non-matches under the current AND-only filtering model.
-- Column names are case-sensitive. Table names are case-sensitive identifiers
-  containing letters, digits, and underscores, and must not begin with a digit.
-
-## Database Directory Layout
-
-Opening `DatabaseManager{"./my_database"}` creates or reopens this layout:
-
-```text
-my_database/
-├── catalogs/
-│   ├── documents.csv
-│   └── reviews.csv
-└── tables/
-    ├── documents.csv
-    ├── documents.nextid
-    └── reviews.csv
-```
-
-Each catalog CSV stores its table name, column order, logical types, and vector
-dimensions and nullability. Each table CSV has leading `__vrdb_row_id` and
-`__vrdb_null_bitmap` physical columns, then the logical schema columns.
-A small `.nextid` sidecar records the next
-internal ID so deleting the newest row cannot cause ID reuse. TEXT
-values may contain spaces, punctuation, and newlines; empty strings are allowed.
-A vector is stored in one CSV field such as `"[0.1,-0.2,0.3]"`.
-
-The current storage is row-oriented because inserts and queries operate on
-complete rows and execution uses sequential scans. A file per column would add
-row-alignment and recovery complexity without helping the current workload.
-The CSV format favors correctness and inspectability; it is not intended as the
-final high-performance storage format.
-
-## Build
+Requirements: CMake 3.16 or newer and a C++20 compiler with thread support.
+Python 3 is optional for the generator and Python-based tests. hnswlib v0.8.0
+headers are vendored in the repository; builds do not download dependencies.
 
 ```sh
-cmake -S . -B build
-cmake --build build
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --config Debug
+ctest --test-dir build -C Debug --output-on-failure
 ```
 
-## Command-Line Interface
+Use Debug when running tests: the suite uses C++ assertions. With a single-config
+generator, executables are under `build/`. With a multi-config generator such as
+Visual Studio, use `build/Debug/` and the `.exe` suffix on Windows.
+
+| Build target | Purpose |
+| --- | --- |
+| `vrdb` | Database library to link into C++ applications |
+| `vrdb_cli` | Command-line table and row operations |
+| `vrdb_demo` | Standalone C++ API example |
+| `vrdb_query_benchmark` | Sequential versus parallel scan benchmark |
+| `vrdb_hnsw_benchmark` | Exact versus HNSW top-k benchmark |
+
+## CLI quick start
+
+The examples below use the single-config executable path. Each command opens the
+same database directory and persists its changes.
 
 ```sh
 ./build/vrdb_cli ./example_db init
-./build/vrdb_cli ./example_db create documents \
-  id:INTEGER title:TEXT 'embedding:VECTOR(3)'
-./build/vrdb_cli ./example_db insert documents \
-  1 'vector databases' '[0.1,-0.2,0.3]'
+./build/vrdb_cli ./example_db create documents title:TEXT 'embedding:VECTOR(3)'
+./build/vrdb_cli ./example_db insert documents 'vector databases' '[0.1,0.2,0.3]'
 ./build/vrdb_cli ./example_db list
 ./build/vrdb_cli ./example_db describe documents
 ./build/vrdb_cli ./example_db select documents
-./build/vrdb_cli ./example_db update documents 1 \
-  1 'updated title' '[0.2,0.1,0.3]'
-./build/vrdb_cli ./example_db delete documents 1
+./build/vrdb_cli ./example_db update documents 1 'updated title' '[0.2,0.1,0.3]'
 ./build/vrdb_cli ./example_db select documents --csv
+./build/vrdb_cli ./example_db delete documents 1
 ```
 
-Every invocation reopens the database from disk, so the latter commands also
-exercise catalog and row recovery. `insert` prints the allocated `RowId`;
-`select` displays it with the rows in a bordered table. `update` replaces all
-values in one row, in schema order, and `delete` removes one row by `RowId`.
-On a terminal, headings and status messages use ANSI colors; colors are disabled
-when output is redirected, `NO_COLOR` is set, or `TERM=dumb`. `select --csv`
-emits lossless database CSV (including `row_id` and `__vrdb_null_bitmap`)
-without table decoration. The table reader accepts this export when supplied
-with its corresponding schema; the export does not contain catalog metadata.
-Rich predicates remain available through the C++ `Query` API; the CLI does
-not include a SQL parser or interactive REPL yet.
+`insert` prints the allocated `RowId`; use that value for `update` and `delete`
+(the example assumes the first insert into a new table returns `1`). Updates
+replace the entire row, with values supplied in schema order.
 
-Append `:NOT_NULL` to a CLI column declaration to disallow NULL, for example
-`id:INTEGER:NOT_NULL`. Insert/update arguments use exact `\N` for NULL. For
-TEXT beginning with a backslash, supply an extra leading backslash: `'\\N'`
-stores literal `\N`, while `'\N'` stores NULL. Single-quote these arguments
-in PowerShell or a POSIX shell. Ordinary `NULL` stores text. `describe` shows
-nullability, and terminal output distinguishes NULL from literal text `"NULL"`.
-Rows must still provide every column value. There is no schema-alteration API
-for enabling NULL on existing NOT NULL tables in this change.
+`select` displays rows in a bordered table. `select --csv` exports rows with their
+IDs and NULL bitmap, without table decoration. Schema metadata is stored
+separately and is not included in the export.
 
-For example, the C++ API accepts:
+Columns allow NULL by default. Append `:NOT_NULL` to disallow it, for example
+`title:TEXT:NOT_NULL`. Supply `'\N'` as a value for NULL; `'\\N'` in a TEXT
+column stores the literal text `\N`. Quote these arguments in PowerShell or a
+POSIX shell. Empty text and the word `NULL` are ordinary text values.
+
+The CLI currently exposes `init`, `list`, `describe`, `create`, `insert`, `update`,
+`delete`, and full-table `select`. Rich filtering, nearest-neighbor search,
+table dropping, and index management are available through the C++ API.
+
+## C++ queries and vector search
+
+Link your application to the `vrdb` CMake target and include
+`db/database_manager.hpp`. This example creates a table, filters rows, and
+searches an embedding column:
 
 ```cpp
-Schema schema{{Column{"id", DataType::INTEGER, 0, false},
-               Column{"title", DataType::TEXT}}};
-db.createTable("notes", schema);
-db.insert("notes", Row{{std::int64_t{1}, nullCell()}});
-Query query{};
-query.table = "notes";
-query.predicates = {isNull("title")};
-auto result = db.select(query);
+#include "db/database_manager.hpp"
+
+#include <cstdint>
+#include <string>
+#include <vector>
+
+int main() {
+    using namespace vrdb;
+
+    DatabaseManager db{"./cpp_example_db"};
+    if (!db.hasTable("documents")) {
+        db.createTable("documents", Schema{{
+            Column{"title", DataType::TEXT, 0, false},
+            Column{"year", DataType::INTEGER},
+            Column{"embedding", DataType::VECTOR, 3}
+        }});
+        db.insert("documents", Row{{
+            std::string{"vector databases"}, std::int64_t{2026},
+            std::vector<float>{0.1F, 0.2F, 0.3F}
+        }});
+        db.createVectorIndex({"documents_embedding", "documents", "embedding",
+                              DistanceMetric::COSINE});
+    }
+
+    Query scan{};
+    scan.table = "documents";
+    scan.projection = {"title", "year"};
+    scan.predicates = {
+        integerComparison("year", ComparisonOperator::GREATER_THAN_OR_EQUAL, 2020),
+        vectorDistance("embedding", DistanceMetric::COSINE,
+                       {0.2F, 0.1F, 0.3F}, ComparisonOperator::LESS_THAN, 0.25)
+    };
+    scan.limit = 10;
+    auto matches = db.select(scan);
+
+    NearestNeighborQuery nearest{"documents", "embedding", {0.2F, 0.1F, 0.3F},
+                                 DistanceMetric::COSINE, 10};
+    nearest.projection = {"title"};
+    auto neighbors = db.nearestNeighbors(nearest);
+}
 ```
 
-The separate `vrdb_demo` executable remains as a hard-coded API example.
+### Exact scans
 
-## Test
+`select` returns a `QueryResult` containing a schema, rows, and positionally
+aligned `rowIds`. Empty projection selects all columns. Predicates use AND;
+offset and limit apply to matching rows in table order. Use
+`db.select(scan, QueryExecutionOptions{1})` for sequential execution, or the
+default options for a hardware-based worker count.
+
+Use `nullCell()` to construct NULL values. Typed comparisons against NULL,
+including inequality and vector-distance comparisons, do not match. Explicit
+`isNull("column")` and `isNotNull("column")` predicates work on every type.
+
+### Nearest-neighbor search
+
+`nearestNeighbors` returns up to `k` rows ordered by ascending distance, with
+RowId used to break ties among retrieved candidates. Its result contains:
+
+- `result`: the projected `QueryResult`, including RowIds.
+- `distances`: positionally aligned `double` distances in the selected metric.
+- `method`: `NearestNeighborMethod::EXACT` or `NearestNeighborMethod::HNSW`.
+
+| Query configuration | Execution |
+| --- | --- |
+| `AUTO`, no predicates, matching index | Approximate HNSW search |
+| `AUTO`, no matching index | Exact top-k scan |
+| Any predicates | Exact top-k scan over matching rows |
+| `NearestNeighborMode::EXACT` | Exact top-k scan |
+
+Set `nearest.mode = NearestNeighborMode::EXACT` to force exact results. Add
+existing predicates to `nearest.predicates` to search only matching rows. NULL
+vectors are skipped. Search vectors require finite coordinates and matching
+dimensions; cosine distance also requires nonzero vectors.
+
+Index names are database-unique. Each `(table, column, metric)` can have one
+index; use `listVectorIndexes()` and `dropVectorIndex(name)` to manage them.
+Definitions persist across restarts. Graphs build on first use and rebuild on
+the next eligible search after a write. HNSW does not accelerate `select`.
+
+See the [HNSW guide](docs/hnsw.md) for tuning, validation, index lifecycle, and
+recall tests.
+
+## Storage and architecture
+
+```text
+my_database/
+|-- catalogs/
+|   `-- documents.csv       # Table schema
+|-- tables/
+|   |-- documents.csv       # Rows, internal IDs, and NULL bitmap
+|   `-- documents.nextid    # Persistent RowId allocation counter
+`-- indexes/               # Created when an index is defined
+    `-- documents_embedding.csv
+```
+
+Catalog files determine which tables exist. Row-oriented CSV preserves text
+containing commas, quotes, and newlines, and round-trips float vector values.
+The ID counter prevents ID reuse after deletion. Only index definitions are
+stored on disk; HNSW graphs and row caches are held in memory.
+
+| Component | Responsibility |
+| --- | --- |
+| `DatabaseManager` | Public table, row, query, and index APIs |
+| `Catalog` and logical types | Table metadata and schema/row validation |
+| `FileStorageEngine` | Filesystem operations, row mutations, and table cursors |
+| `CsvFormat` and `IndexFormat` | Stream encoding for data and metadata |
+| `Page` and `QueryExecutor` | Bounded row batches, predicate evaluation, and projection |
+| `IndexManager` and `VectorIndex` | Index lifecycle, shared row caches, and an interchangeable HNSW adapter |
+
+API failures use `DatabaseError` and its `SchemaError`, `StorageError`, and
+`QueryError` subclasses. Table, column, and index names are case-sensitive;
+table and index names must be valid identifiers containing letters, digits, and
+underscores, with no leading digit.
+
+## Benchmarks and sample data
+
+Use an optimized build for timing:
 
 ```sh
-ctest --test-dir build --output-on-failure
+cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release
+cmake --build build-release --config Release
+./build-release/vrdb_query_benchmark 30000 256 3 8
+./build-release/vrdb_hnsw_benchmark 10000 16 100 50
 ```
 
-## Design Docs
+For multi-config generators, use `build-release/Release/`. The scan benchmark
+compares sequential and parallel filtering. The HNSW benchmark reports cold
+build time plus the first query, warm search latency, exact scan latency,
+recall@10, and resident memory where supported. Timing results depend on the
+machine and dataset.
 
-- `docs/high-level-proposal.md`: project scope and intended end-to-end behavior.
-- `docs/milestone1-design-proposal.md`: Milestone 1 module/API design.
-- `docs/storage-format.md`: current CSV catalog and table format.
+Generate a separate synthetic database with Python:
+
+```sh
+python scripts/generate_database.py 0.01 --output ./data/sample
+```
+
+The size is in decimal GB and applies to the table CSV. The generator refuses
+to overwrite an existing destination. Its repeated embeddings make it useful
+for storage and scan workloads; use the HNSW benchmark for similarity testing.
+
+## Current limitations
+
+- No SQL parser, interactive REPL, joins, aggregation, schema alteration,
+  relational indexes, or general-purpose sorting API.
+- No transactions or write-ahead log. Updates and deletes rewrite the table
+  CSV; inserts also read the existing table. CSV storage favors inspectability
+  over write throughput and random access.
+- HNSW search is approximate. Filtered nearest-neighbor queries currently use
+  exact scans, and writes invalidate graphs rather than updating them incrementally.
+- Indexed tables must fit in memory: indexes share a full-row cache per table,
+  and each built graph also stores its vectors and links. There is no cache eviction.
+- Database operations must be externally serialized. Internal parallel scan
+  workers do not provide concurrency control for simultaneous API calls,
+  database owners, or external file edits.
+
+## Further documentation
+
+- [Storage format](docs/storage-format.md): CSV layouts, NULL encoding, and legacy compatibility.
+- [HNSW guide](docs/hnsw.md): vector-search behavior, tuning, persistence, and benchmarks.
+- [High-level proposal](docs/high-level-proposal.md): original project goals and future direction.
+- [Milestone 1 proposal](docs/milestone1-design-proposal.md): initial module and API design.
+- [Roadmap](docs/roadmap.md): project checklist; some status entries predate current capabilities.

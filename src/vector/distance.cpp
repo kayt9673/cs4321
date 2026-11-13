@@ -8,7 +8,7 @@ namespace vrdb {
 namespace {
 
 // Reject vectors with different numbers of coordinates.
-void validateSameDimension(const std::vector<float>& a, const std::vector<float>& b) {
+void validateSameDimension(std::span<const float> a, std::span<const float> b) {
     if (a.size() != b.size()) {
         throw QueryError{"vectors must have matching dimensions"};
     }
@@ -17,7 +17,7 @@ void validateSameDimension(const std::vector<float>& a, const std::vector<float>
 } // namespace
 
 // Compute cosine distance, rejecting mismatched dimensions and zero vectors.
-double cosineDistance(const std::vector<float>& a, const std::vector<float>& b) {
+double cosineDistance(std::span<const float> a, std::span<const float> b) {
     validateSameDimension(a, b);
 
     double dot{0.0};
@@ -37,7 +37,7 @@ double cosineDistance(const std::vector<float>& a, const std::vector<float>& b) 
 }
 
 // Compute Euclidean distance between vectors of equal dimension.
-double euclideanDistance(const std::vector<float>& a, const std::vector<float>& b) {
+double euclideanDistance(std::span<const float> a, std::span<const float> b) {
     validateSameDimension(a, b);
 
     double sum{0.0};
@@ -49,7 +49,7 @@ double euclideanDistance(const std::vector<float>& a, const std::vector<float>& 
 }
 
 // Compute vector distance using the requested metric.
-double distance(const std::vector<float>& a, const std::vector<float>& b, DistanceMetric metric) {
+double distance(std::span<const float> a, std::span<const float> b, DistanceMetric metric) {
     switch (metric) {
     case DistanceMetric::EUCLIDEAN:
         return euclideanDistance(a, b);
@@ -57,6 +57,18 @@ double distance(const std::vector<float>& a, const std::vector<float>& b, Distan
         return cosineDistance(a, b);
     }
     throw QueryError{"unknown distance metric"};
+}
+
+double cosineDistance(const std::vector<float>& a, const std::vector<float>& b) {
+    return cosineDistance(std::span<const float>{a}, std::span<const float>{b});
+}
+
+double euclideanDistance(const std::vector<float>& a, const std::vector<float>& b) {
+    return euclideanDistance(std::span<const float>{a}, std::span<const float>{b});
+}
+
+double distance(const std::vector<float>& a, const std::vector<float>& b, DistanceMetric metric) {
+    return distance(std::span<const float>{a}, std::span<const float>{b}, metric);
 }
 
 } // namespace vrdb

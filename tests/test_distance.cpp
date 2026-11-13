@@ -11,6 +11,9 @@
 int main() {
     using namespace vrdb;
 
+    assert(euclideanDistance({}, {}) == 0.0);
+    assert(distance({}, {}, DistanceMetric::EUCLIDEAN) == 0.0);
+
     assert(std::fabs(euclideanDistance({0.0, 0.0}, {3.0, 4.0}) - 5.0) < 0.0001);
     assert(std::fabs(distance({0.0, 0.0}, {3.0, 4.0}, DistanceMetric::EUCLIDEAN) - 5.0) < 0.0001);
     assert(std::fabs(cosineDistance({1.0, 0.0}, {1.0, 0.0}) - 0.0) < 0.0001);

@@ -8,9 +8,14 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+add_library(hnswlib_headers INTERFACE)
+target_include_directories(hnswlib_headers SYSTEM INTERFACE
+    ${PROJECT_SOURCE_DIR}/third_party/hnswlib)
+
 add_library(vrdb
     src/db/database_manager.cpp
     src/db/catalog.cpp
+    src/db/index_manager.cpp
     src/db/errors.cpp
     src/query/predicate.cpp
     src/types/data_type.cpp
@@ -20,10 +25,13 @@ add_library(vrdb
     src/types/row.cpp
     src/storage/serialization.cpp
     src/storage/csv_format.cpp
+    src/storage/index_format.cpp
     src/storage/page.cpp
     src/storage/file_storage_engine.cpp
     src/query/executor.cpp
+    src/query/nearest_neighbor.cpp
     src/vector/distance.cpp
+    src/vector/index.cpp
 )
 
 target_include_directories(vrdb
@@ -31,6 +39,7 @@ target_include_directories(vrdb
         ${PROJECT_SOURCE_DIR}/include
 )
 target_link_libraries(vrdb PUBLIC Threads::Threads)
+target_link_libraries(vrdb PRIVATE hnswlib_headers)
 
 add_executable(vrdb_demo src/main.cpp)
 target_link_libraries(vrdb_demo PRIVATE vrdb)
@@ -41,7 +50,20 @@ target_link_libraries(vrdb_cli PRIVATE vrdb)
 add_executable(vrdb_query_benchmark benchmarks/query_benchmark.cpp)
 target_link_libraries(vrdb_query_benchmark PRIVATE vrdb)
 
+add_executable(vrdb_hnsw_benchmark benchmarks/hnsw_benchmark.cpp)
+target_link_libraries(vrdb_hnsw_benchmark PRIVATE vrdb)
+if(WIN32)
+    target_link_libraries(vrdb_hnsw_benchmark PRIVATE psapi)
+endif()
+
 enable_testing()
+
+foreach(test_name vector_index nearest_neighbor hnsw_recall)
+    add_executable(test_${test_name} tests/test_${test_name}.cpp)
+    target_link_libraries(test_${test_name} PRIVATE vrdb)
+    add_test(NAME ${test_name} COMMAND test_${test_name})
+endforeach()
+set_tests_properties(hnsw_recall PROPERTIES TIMEOUT 300)
 
 add_executable(test_null tests/test_null.cpp)
 target_link_libraries(test_null PRIVATE vrdb)

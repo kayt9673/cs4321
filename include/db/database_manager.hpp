@@ -1,6 +1,8 @@
 #pragma once
 
 #include "db/catalog.hpp"
+#include "db/index_manager.hpp"
+#include "query/nearest_neighbor.hpp"
 #include "query/executor.hpp"
 #include "query/query.hpp"
 #include "storage/file_storage_engine.hpp"
@@ -42,6 +44,11 @@ public:
     QueryResult select(const Query& query,
                        QueryExecutionOptions options = {});
 
+    void createVectorIndex(const VectorIndexDefinition& definition);
+    void dropVectorIndex(const std::string& name);
+    std::vector<VectorIndexDefinition> listVectorIndexes() const;
+    NearestNeighborResult nearestNeighbors(const NearestNeighborQuery& query);
+
     // Return whether the catalog contains the named table.
     bool hasTable(const std::string& name) const;
     // Return table names in sorted order.
@@ -55,6 +62,7 @@ private:
     Catalog catalog_;
     FileStorageEngine storage_;
     QueryExecutor executor_;
+    IndexManager indexes_;
 };
 
 } // namespace vrdb

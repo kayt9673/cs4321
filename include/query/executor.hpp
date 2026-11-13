@@ -6,11 +6,21 @@
 
 #include <cstddef>
 #include <vector>
+#include <utility>
 
 namespace vrdb {
 
 class QueryExecutor {
 public:
+    struct Prepared {
+        std::vector<std::size_t> projection;
+        // Borrows predicates from the Query; keep it alive while matching rows.
+        std::vector<std::pair<std::size_t, const Predicate*>> predicates;
+    };
+    Prepared prepare(const Query& query, const Schema& schema) const;
+    bool matches(const Prepared& prepared, const Row& row) const;
+    Row projectRow(const Row& row, const std::vector<std::size_t>& projection) const;
+    Schema projectSchema(const Schema& schema, const std::vector<std::size_t>& projection) const;
     struct State {
         QueryResult result;
         std::size_t skipped{0};
@@ -28,10 +38,6 @@ public:
 private:
     // Evaluate one typed predicate against a row cell.
     bool evaluatePredicate(const Predicate& predicate, std::size_t column, const Row& row) const;
-    // Copy the selected cells, or the whole row for an empty projection.
-    Row projectRow(const Row& row, const std::vector<std::size_t>& projection) const;
-    // Build the selected-column schema, or copy it for an empty projection.
-    Schema projectSchema(const Schema& schema, const std::vector<std::size_t>& projection) const;
 };
 
 } // namespace vrdb
